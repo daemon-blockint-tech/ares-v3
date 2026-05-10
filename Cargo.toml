@@ -1,0 +1,53 @@
+[workspace]
+members = [
+    "crates/ares-cli",
+    "crates/ares-core",
+    "crates/ares-trident",
+    "crates/ares-mapper",
+    "crates/ares-policy",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ARES Team"]
+license = "MIT"
+repository = "https://github.com/ares-v3/ares"
+
+[workspace.dependencies]
+# CLI & Async
+clap = { version = "4.5", features = ["derive", "cargo"] }
+tokio = { version = "1.40", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Serialization & Config
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+config = "0.14"
+
+# HTTP & API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Filesystem & Process
+walkdir = "2.5"
+tempfile = "3.13"
+which = "6.0"
+
+# AST / Parsing
+syn = { version = "2.0", features = ["full", "visit"] }
+quote = "1.0"
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
+
+# Testing
+pretty_assertions = "1.4"
+
+# Internal workspace crates
+ares-core = { path = "crates/ares-core" }
+ares-trident = { path = "crates/ares-trident" }
+ares-mapper = { path = "crates/ares-mapper" }
+ares-policy = { path = "crates/ares-policy" }

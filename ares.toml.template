@@ -1,0 +1,80 @@
+# ARES V3 Configuration
+# Copy to ares.toml and customize for your environment
+
+# Path overrides for external tools (auto-detected from PATH if not set)
+trident_path = "trident"
+solana_cli_path = "solana"
+anchor_cli_path = "anchor"
+
+# Output directory for reports, artifacts, and proof-of-concept tests
+output_dir = "./ares-output"
+
+# Docker sandbox image for isolated execution
+sandbox_image = "ares-v3/sandbox:latest"
+
+# Fuzzing configuration
+max_fuzz_iterations = 100000        # Default fuzz iterations per target
+max_scan_duration_secs = 3600       # Maximum scan duration (1 hour)
+
+# LLM model selection for agent reasoning
+llm_model = "claude-3-5-sonnet"     # Options: claude-3-5-sonnet, gpt-4, gpt-5, llama-3.3
+
+# LLM provider for ARES-as-Judge (disabled by default)
+llm_provider = "disabled"            # Options: "disabled", "openai", "anthropic", "ollama"
+llm_judge_enabled = false
+
+# API key for remote LLM providers (OpenAI, Anthropic). Ollama runs locally.
+# llm_api_key = "sk-..."
+
+# Base URL for Ollama (default: http://localhost:11434)
+# llm_base_url = "http://localhost:11434"
+
+# Budget throttling — limits cost and latency per scan
+llm_max_tokens_per_call = 2048      # Max tokens in LLM response per finding
+llm_max_findings_per_scan = 20      # Only top-N findings (by confidence) sent to LLM
+
+# Policy engine
+policy_file = "ares-policy.toml"
+
+# Benchmark dataset path
+benchmark_dataset_path = "./dataset/solana-common-attack-vectors"
+
+# Mainnet fork simulation for realistic PoC validation
+# Set to true to auto-start solana-test-validator --clone on `ares validate --fork-mainnet`
+mainnet_fork_enabled = false
+
+# RPC endpoint to fork mainnet state from.
+# Default public endpoint (rate-limited). For production use a dedicated RPC:
+#   Helius:    https://mainnet.helius-rpc.com/?api-key=YOUR_KEY
+#   QuickNode: https://your-endpoint.quicknode.pro/YOUR_TOKEN
+mainnet_rpc_url = "https://api.mainnet-beta.solana.com"
+
+# Accounts to clone into the local validator (program IDs, PDAs, token accounts).
+# Leave empty to clone nothing; validator still forks mainnet genesis config.
+mainnet_clone_accounts = []
+
+# Specific slot to fork from (null = latest).
+mainnet_fork_slot = null
+
+# Advanced settings
+[advanced]
+# Number of parallel fuzz campaigns
+parallel_fuzzers = 2
+
+# Coverage-guided fuzzing budget allocation
+adaptive_budget = true
+
+# Enable formal verification (Kani) for critical paths
+formal_verification = false
+
+# Fork mainnet for economic exploit validation
+mainnet_fork_enabled = false
+mainnet_fork_slot = null
+
+# CI/CD integration
+ci_mode = false
+github_integration = false
+
+# Logging
+telemetry_enabled = false
+crash_reporting = false
