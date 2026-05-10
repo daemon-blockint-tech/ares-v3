@@ -185,7 +185,7 @@ pub struct BenchmarkResult {
 }
 
 /// LLM provider selection for ARES-as-Judge.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LlmProvider {
     Openai,

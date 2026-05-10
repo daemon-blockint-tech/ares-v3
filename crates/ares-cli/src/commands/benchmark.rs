@@ -1298,7 +1298,7 @@ fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns {
         // This is Signal C for signer-authorization, detected at field level.
         // The mapper stores struct names, not field names; we scan source directly.
         for body in &struct_bodies {
-            let body_code = code_only(body);
+            let _body_code = code_only(body);
             let body_lines_raw: Vec<_> = body.lines().collect();
             // Find /// CHECK: lines and look at the following account attribute
             for (idx, line) in body_lines_raw.iter().enumerate() {

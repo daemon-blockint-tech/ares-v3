@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ares_core::AresConfig;
-use ares_cli::ReportFormat;
+use ares_v3::ReportFormat;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -19,15 +19,18 @@ struct Cli {
     verbose: u8,
 
     /// Policy override: require explicit approval for dangerous operations
-    #[arg(long, default_value = "true")]
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
     strict_policy: bool,
 
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Start the interactive Agentic TUI (REPL)
+    Interact {},
+
     /// Initialize ARES workspace and verify dependencies
     Init {
         /// Project directory to initialize
@@ -46,15 +49,15 @@ enum Commands {
         target: Option<String>,
 
         /// Enable full multi-agent pipeline (Mapper -> Hypothesis -> Fuzzer -> Exploit -> Triager -> Reporter)
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         full_pipeline: bool,
 
         /// Run property-based fuzzing with Trident
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         fuzz: bool,
 
         /// Generate deterministic proof-of-concept tests for each finding
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         poc: bool,
 
         /// Maximum scan duration in seconds
@@ -96,7 +99,7 @@ enum Commands {
         protocol: Option<String>,
 
         /// Compare results against Trident Arena baseline
-        #[arg(long, default_value = "true")]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         compare_baseline: bool,
 
         /// Generate benchmark report
@@ -147,6 +150,12 @@ enum Commands {
         command: PolicyCommands,
     },
 
+    /// Manage LLM configuration for the Agentic UI
+    Llm {
+        #[command(subcommand)]
+        command: LlmCommands,
+    },
+
     /// Generate self-contained HTML benchmark dashboard
     Dashboard {
         /// Path to benchmark JSON output
@@ -161,6 +170,27 @@ enum Commands {
         #[arg(short, long, value_enum, default_value = "html")]
         format: ReportFormat,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum LlmCommands {
+    /// Configure API key and model (interactive or via flags)
+    Setup {
+        /// Provider (openai, anthropic, ollama)
+        #[arg(short, long)]
+        provider: Option<String>,
+        /// API Key
+        #[arg(short, long)]
+        api_key: Option<String>,
+        /// Model name (e.g. gpt-4o, claude-3-5-sonnet)
+        #[arg(short, long)]
+        model: Option<String>,
+        /// Base URL (for Ollama or proxy)
+        #[arg(short, long)]
+        endpoint: Option<String>,
+    },
+    /// Show current LLM configuration
+    Status,
 }
 
 #[derive(Subcommand, Debug)]
@@ -183,12 +213,28 @@ async fn main() -> Result<()> {
         1 => "debug",
         _ => "trace",
     };
-    tracing_subscriber::fmt()
-        .with_env_filter(format!("ares={}", log_level))
-        .init();
+    
+    let is_tui = matches!(cli.command, Some(Commands::Interact {}) | None);
+    
+    let _log_guard = if is_tui {
+        let file_appender = tracing_appender::rolling::never(".", "ares.log");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+        tracing_subscriber::fmt()
+            .with_env_filter(format!("ares={}", log_level))
+            .with_writer(non_blocking)
+            .init();
+        Some(guard)
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(format!("ares={}", log_level))
+            .init();
+        None
+    };
 
-    info!("ARES V3 — Autonomous Solana Security Auditor");
-    info!("Phase 1: Trident Integration + Multi-Agent Pipeline");
+    if !is_tui {
+        info!("ARES V3 - Autonomous Solana Security Auditor");
+        info!("Phase 1: Trident Integration + Multi-Agent Pipeline");
+    }
 
     // Load or initialize config
     let config = if cli.config.exists() {
@@ -200,11 +246,15 @@ async fn main() -> Result<()> {
 
     // Route commands
     match cli.command {
-        Commands::Init { path } => {
-            info!("Initializing ARES workspace at {:?}", path);
-            ares_cli::commands::init::execute(&path).await?;
+        Some(Commands::Interact {}) | None => {
+            info!("Starting ARES Agentic TUI");
+            ares_v3::tui::run_tui(&config).await?;
         }
-        Commands::Scan {
+        Some(Commands::Init { path }) => {
+            info!("Initializing ARES workspace at {:?}", path);
+            ares_v3::commands::init::execute(&path).await?;
+        }
+        Some(Commands::Scan {
             program_path,
             target,
             full_pipeline,
@@ -212,12 +262,12 @@ async fn main() -> Result<()> {
             poc,
             max_duration,
             output,
-        } => {
+        }) => {
             info!(
                 "Scanning {:?} | pipeline={} fuzz={} poc={} duration={}s",
                 program_path, full_pipeline, fuzz, poc, max_duration
             );
-            ares_cli::commands::scan::execute(
+            ares_v3::commands::scan::execute(
                 &program_path,
                 &config,
                 target,
@@ -229,79 +279,93 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        Commands::Fuzz {
+        Some(Commands::Fuzz {
             path,
             iterations,
             test,
             deterministic,
-        } => {
+        }) => {
             info!(
                 "Running fuzz campaign on {:?} | iterations={} deterministic={}",
                 path, iterations, deterministic
             );
-            ares_cli::commands::fuzz::execute(&path, iterations, test, deterministic).await?;
+            ares_v3::commands::fuzz::execute(&path, iterations, test, deterministic).await?;
         }
-        Commands::Benchmark {
+        Some(Commands::Benchmark {
             dataset,
             protocol,
             compare_baseline,
             output,
-        } => {
+        }) => {
             info!(
                 "Running benchmark | dataset={:?} protocol={:?} compare={}",
                 dataset, protocol, compare_baseline
             );
-            ares_cli::commands::benchmark::execute(&dataset, protocol, compare_baseline, &output)
+            ares_v3::commands::benchmark::execute(&dataset, protocol, compare_baseline, &output)
                 .await?;
         }
-        Commands::Validate {
+        Some(Commands::Validate {
             poc_path,
             fork_mainnet,
             fork_slot,
             rpc_url,
-        } => {
+        }) => {
             info!(
                 "Validating PoC {:?} | fork_mainnet={} slot={:?} rpc={:?}",
                 poc_path, fork_mainnet, fork_slot, rpc_url
             );
-            ares_cli::commands::validate::execute(&poc_path, fork_mainnet, fork_slot, &config, rpc_url).await?;
+            ares_v3::commands::validate::execute(&poc_path, fork_mainnet, fork_slot, &config, rpc_url).await?;
         }
-        Commands::Report {
+        Some(Commands::Report {
             scan_output,
             format,
             output,
-        } => {
+        }) => {
             info!(
                 "Generating report from {:?} | format={:?}",
                 scan_output, format
             );
-            ares_cli::commands::report::execute(&scan_output, format, output).await?;
+            ares_v3::commands::report::execute(&scan_output, format, output).await?;
         }
-        Commands::Doctor {} => {
-            ares_cli::commands::doctor::execute().await?;
+        Some(Commands::Doctor {}) => {
+            ares_v3::commands::doctor::execute().await?;
         }
-        Commands::Policy { command } => match command {
+        Some(Commands::Policy { command }) => match command {
             PolicyCommands::Status => {
-                ares_cli::commands::policy::status().await?;
+                ares_v3::commands::policy::status().await?;
             }
             PolicyCommands::Escalate { capability } => {
-                ares_cli::commands::policy::escalate(&capability).await?;
+                ares_v3::commands::policy::escalate(&capability).await?;
             }
             PolicyCommands::Reset => {
-                ares_cli::commands::policy::reset().await?;
+                ares_v3::commands::policy::reset().await?;
             }
         },
-        Commands::Dashboard {
+        Some(Commands::Dashboard {
             benchmark_json,
             output,
             format,
-        } => {
+        }) => {
             info!(
                 "Generating dashboard from {:?} -> {:?} (format: {:?})",
                 benchmark_json, output, format
             );
-            ares_cli::commands::dashboard::execute(&benchmark_json, &output, format).await?;
+            ares_v3::commands::dashboard::execute(&benchmark_json, &output, format).await?;
         }
+        Some(Commands::Llm { command }) => match command {
+            LlmCommands::Setup { provider, api_key, model, endpoint } => {
+                ares_v3::commands::llm::setup(
+                    provider, 
+                    api_key, 
+                    model, 
+                    endpoint, 
+                    &cli.config
+                ).await?;
+            }
+            LlmCommands::Status => {
+                ares_v3::commands::llm::status(&config).await?;
+            }
+        },
     }
 
     info!("ARES command completed successfully.");

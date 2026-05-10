@@ -98,8 +98,8 @@ impl TridentTool {
 
         let output = Command::new(&self.trident_path)
             .current_dir(&self.working_dir)
-            .arg("fuzz")
             .arg("init")
+            .arg("--skip-build")
             .output()
             .await
             .map_err(|e| AresError::Trident(format!("Failed to init fuzz tests: {}", e)))?;

@@ -24,6 +24,15 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# TUI & Prompts
+ratatui = "0.29.0"
+crossterm = "0.28.1"
+tui-textarea = "0.7.0"
+syntect = "5.2"
+dialoguer = "0.11.0"
+textwrap = "0.16.1"
+regex = "1.11"
+
 # Serialization & Config
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

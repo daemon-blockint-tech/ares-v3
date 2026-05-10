@@ -1,4 +1,4 @@
-<h1 align="center">ARES V3</h1>
+﻿<h1 align="center">ARES V3</h1>
 
 <p align="center">
   <strong>Deterministic Static Analysis for Solana Smart Contracts</strong>
@@ -141,23 +141,97 @@ On five publicly audited protocols shared with the Trident Arena benchmark (22 t
 
 Sources B and C augment the pipeline with pre-indexed context. Source D provides real-time external enrichment but is excluded from all benchmark scoring to preserve determinism.
 
-## Quick Start
+## Installation & Setup
 
-### Prerequisites
+ARES V3 requires Rust, the Solana CLI, and OpenSSL to compile correctly.
 
-- Rust 1.75+ and Cargo
-- Solana toolchain (for target programs)
-- Git
+### 1. System Dependencies
 
-### Build
+**Linux (Ubuntu/Debian)**
+```bash
+# Update package list and install build dependencies
+sudo apt-get update
+sudo apt-get install -y build-essential pkg-config libssl-dev git curl
+```
+
+**macOS**
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Install OpenSSL via Homebrew
+brew install openssl
+```
+
+**Windows**
+On Windows, you need the MSVC build tools and a pre-compiled OpenSSL binary.
+1. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (ensure "Desktop development with C++" is checked).
+2. Install [OpenSSL v3.x](https://slproweb.com/products/Win32OpenSSL.html) (Full version, not Light).
+3. Set the OpenSSL environment variables in PowerShell (adjust path if necessary):
+```powershell
+$env:OPENSSL_DIR="C:\Program Files\OpenSSL-Win64"
+$env:OPENSSL_LIB_DIR="C:\Program Files\OpenSSL-Win64\lib\VC\x64\MD"
+$env:OPENSSL_INCLUDE_DIR="C:\Program Files\OpenSSL-Win64\include"
+```
+
+### 2. Install Rust & Solana CLI
+
+ARES V3 requires Rust 1.75+ and the Solana Toolchain (which provides `cargo-build-sbf` required for Anchor IDL generation).
+
+**Linux & macOS:**
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install Solana CLI
+sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+```
+
+**Windows (PowerShell):**
+```powershell
+# Install Rust
+curl -sSfO https://win.rustup.rs/rustup-init.exe
+.\rustup-init.exe -y
+
+# Install Solana CLI
+cmd /c "curl https://release.solana.com/stable/solana-install-init-x86_64-pc-windows-msvc.exe --output solana-install-init.exe && solana-install-init.exe"
+```
+
+### 3. Install Trident CLI (Fuzzer)
+
+ARES V3 seamlessly integrates with [Trident](https://ackee.xyz/trident) for automated fuzzing. Install the CLI globally:
+
+```bash
+cargo install trident-cli
+```
+
+### 4. Build ARES V3
+
+Clone the repository and build the project in release mode:
 
 ```bash
 git clone https://github.com/daemon-blockint-tech/ARES-v3.git
-cd ares
+cd ARES-v3
+
+# Build the project
 cargo build --release
+
+# (Optional) Install the CLI globally to your ~/.cargo/bin
+cargo install --path crates/ares-cli
 ```
 
-### Scan a Program
+## 🚀 Quick Start
+
+Once installed, you can launch the ARES Agentic TUI or run CLI commands directly.
+
+### Start the Agentic TUI (Interactive Mode)
+The default command launches an interactive terminal UI where you can chat with the ARES Agent, explore directories, read files, and trigger audits conversationally.
+```bash
+ares interact
+```
+> **Note:** To enable LLM integration, ensure you set up your API configuration either via the TUI prompt, or by running `ares llm setup --provider openai --api-key sk-...`.
+
+### Scan a Program (CLI Mode)
 
 ```bash
 # Scan a local Solana program directory
