@@ -16,20 +16,20 @@ sandbox_image = "ares-v3/sandbox:latest"
 max_fuzz_iterations = 100000        # Default fuzz iterations per target
 max_scan_duration_secs = 3600       # Maximum scan duration (1 hour)
 
-# LLM model selection for agent reasoning
-llm_model = "claude-3-5-sonnet"     # Options: claude-3-5-sonnet, gpt-4, gpt-5, llama-3.3
+# LLM Configuration (Optional, for advanced validation and narrative generation)
+# ARES V3 core works deterministically with 0 API cost.
+# Provide these settings or environment variables to enable LLM features.
+llm_model = "gpt-4o"
+llm_provider = "openai"            # Options: "openai", "anthropic", "ollama", "disabled"
 
-# LLM provider for ARES-as-Judge (disabled by default)
-llm_provider = "disabled"            # Options: "disabled", "openai", "anthropic", "ollama"
+# To use an OpenAI-compatible endpoint (like vLLM, LiteLLM, or Ollama):
+# llm_base_url = "http://localhost:11434/v1"
+
+# ARES will automatically detect the API key from this environment variable.
+# Example: export ARES_LLM_API_KEY="sk-..."
+
+# Enable LLM-as-Judge to further filter false positives (Phase 7)
 llm_judge_enabled = false
-
-# API key for remote LLM providers (OpenAI, Anthropic). Ollama runs locally.
-# llm_api_key = "sk-..."
-
-# Base URL for Ollama (default: http://localhost:11434)
-# llm_base_url = "http://localhost:11434"
-
-# Budget throttling — limits cost and latency per scan
 llm_max_tokens_per_call = 2048      # Max tokens in LLM response per finding
 llm_max_findings_per_scan = 20      # Only top-N findings (by confidence) sent to LLM
 
@@ -66,10 +66,6 @@ adaptive_budget = true
 
 # Enable formal verification (Kani) for critical paths
 formal_verification = false
-
-# Fork mainnet for economic exploit validation
-mainnet_fork_enabled = false
-mainnet_fork_slot = null
 
 # CI/CD integration
 ci_mode = false

@@ -19,6 +19,8 @@
 
 ARES V3 is an open-source, fully deterministic static analysis framework for Solana smart contracts. It detects vulnerability patterns in Anchor and Solitaire programs through a four-phase pipeline -- regex extraction, AST parsing, taint analysis, and a deterministic local judge -- achieving **97% micro-averaged recall** and **0.94 F1** across 20 benchmark protocols with **zero API cost** and **sub-5-second scans**.
 
+> **Zero config, zero cost.** The core pipeline runs locally without any API keys. Bring your own API key (OpenAI-compatible) to enable optional LLM features like the LLM-as-Judge, MCP server enrichment, and narrative report generation.
+
 <p align="center">
   <img src="docs/paper/figures/core_pipeline.png" alt="ARES V3 Core Pipeline" width="85%">
 </p>
