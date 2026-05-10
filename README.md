@@ -150,7 +150,7 @@ Sources B and C augment the pipeline with pre-indexed context. Source D provides
 ### Build
 
 ```bash
-git clone https://github.com/ares-v3/ares.git
+git clone https://github.com/daemon-blockint-tech/ARES-v3.git
 cd ares
 cargo build --release
 ```

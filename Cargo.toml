@@ -13,7 +13,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["ARES Team"]
 license = "MIT"
-repository = "https://github.com/ares-v3/ares"
+repository = "https://github.com/daemon-blockint-tech/ARES-v3"
 
 [workspace.dependencies]
 # CLI & Async
