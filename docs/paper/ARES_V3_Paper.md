@@ -773,7 +773,7 @@ We presented ARES V3, an open-source deterministic static analysis framework for
 
 ## Appendix A: Reproducibility
 
-All code, datasets, and harnesses are available at https://anonymous.4open.science/r/ares-v3 (anonymous submission; permanent URL provided upon acceptance).
+All code, datasets, and harnesses are available at https://github.com/daemon-blockint-tech/ARES-v3.
 
 **Requirements:**
 - Rust ≥1.80.0 (https://rustup.rs)
@@ -783,7 +783,7 @@ All code, datasets, and harnesses are available at https://anonymous.4open.scien
 **Reproduce the v27 results:**
 
 ```bash
-git clone https://anonymous.4open.science/r/ares-v3 && cd ares-v3
+git clone https://github.com/daemon-blockint-tech/ARES-v3.git && cd ARES-v3
 cargo run -p ares-cli --release -- benchmark --dataset dataset --output ares-benchmark-report-v27.md
 ```
 
