@@ -181,7 +181,7 @@ pub async fn execute(
         }
     }
 
-    // Phase 3: Semantic false-positive validation
+    // Phase 3: Semantic false-positive validation (Old validator)
     info!("[4.5/5] Semantic Validator: Suppressing structurally implausible findings...");
     let pre_validation_count = findings.len();
     let validator = crate::validator::SemanticValidator::new(&program_graph);
@@ -191,6 +191,12 @@ pub async fn execute(
         info!("Semantic FP filter suppressed {} findings", suppressed_count);
     }
 
+    // Phase 4: Deterministic Local Judge
+    info!("[4.6/5] Local Judge: Deterministic false-positive suppression...");
+    let local_judge = ares_mapper::local_judge::LocalJudge::new(config.judge_extended);
+    let (retained_findings, mut suppressed_findings) = local_judge.judge(findings, &program_graph.source_patterns);
+    findings = retained_findings;
+
     // Phase 7: LLM-as-Judge validation
     info!("[4.75/5] LLM-as-Judge: Assessing vulnerability plausibility...");
     let llm_judge = crate::llm_judge::LlmJudge::new(&program_graph, config);
@@ -199,13 +205,39 @@ pub async fn execute(
     if llm_suppressed > 0 {
         info!("LLM-as-Judge suppressed {} findings", llm_suppressed);
     }
+    
+    // Convert LLM suppressed findings to SuppressedFinding
+    for r in &llm_results {
+        if r.suppressed {
+            suppressed_findings.push(ares_core::SuppressedFinding {
+                finding: r.finding.clone(),
+                reason: r.reasoning.clone(),
+                suppressed_by: "llm_judge".to_string(),
+            });
+        }
+    }
+    
     findings = crate::llm_judge::extract_findings(llm_results);
 
     // Phase 1: Triager (basic confidence filtering)
     info!("[5/5] Triager: Filtering findings by confidence threshold...");
     let confidence_threshold = 0.70;
     let initial_count = findings.len();
-    findings.retain(|f| f.confidence >= confidence_threshold);
+    
+    let mut final_findings = Vec::new();
+    for f in findings {
+        if f.confidence >= confidence_threshold {
+            final_findings.push(f);
+        } else {
+            suppressed_findings.push(ares_core::SuppressedFinding {
+                finding: f,
+                reason: "Confidence below threshold".to_string(),
+                suppressed_by: "triager".to_string(),
+            });
+        }
+    }
+    findings = final_findings;
+    
     let filtered_count = initial_count - findings.len();
     if filtered_count > 0 {
         info!("Filtered out {} low-confidence findings", filtered_count);
@@ -235,6 +267,7 @@ pub async fn execute(
     let report = AuditReport {
         target: program_target,
         findings,
+        suppressed_findings,
         metadata: ReportMetadata {
             generated_at: Utc::now(),
             ares_version: env!("CARGO_PKG_VERSION").to_string(),

@@ -8,6 +8,8 @@ pub struct MapperAgent {
     program_path: PathBuf,
 }
 
+use crate::source_patterns::SourcePatterns;
+
 /// Represents the analyzed structure of a Solana program.
 #[derive(Debug, Clone, Default)]
 pub struct ProgramGraph {
@@ -17,6 +19,7 @@ pub struct ProgramGraph {
     pub cpi_calls: Vec<CpiCall>,
     pub dependencies: Vec<String>,
     pub all_source_files: Vec<PathBuf>,
+    pub source_patterns: SourcePatterns,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -298,6 +301,66 @@ impl MapperAgent {
             }
         }
 
+        // Calculate SourcePatterns
+        let mut anchor_field_count = 0;
+        let mut typed_anchor_fields = 0;
+        let mut unchecked_fields = 0;
+        let mut write_accounts = std::collections::HashSet::new();
+        let mut cpi_accounts = std::collections::HashSet::new();
+        let mut has_raw_handler = false;
+        let mut has_typed_program = false;
+        let mut has_raw_unvalidated_cpi = false;
+
+        for acc in &graph.accounts {
+            // Very simplified heuristic for fields based on AccountNode
+            anchor_field_count += 1;
+            if acc.is_signer || acc.has_one_constraints.len() > 0 || acc.seeds.is_some() {
+                typed_anchor_fields += 1;
+            } else if !acc.is_initialized_check.unwrap_or(false) && !acc.is_signer {
+                unchecked_fields += 1;
+            }
+        }
+
+        for instr in &graph.instructions {
+            for (acc_name, effect) in &instr.effects {
+                match effect {
+                    AccountEffect::Write | AccountEffect::Create | AccountEffect::Close => {
+                        write_accounts.insert(acc_name.clone());
+                    }
+                    AccountEffect::CpiPass => {
+                        cpi_accounts.insert(acc_name.clone());
+                    }
+                    _ => {}
+                }
+            }
+            if !instr.has_signer_check.unwrap_or(true) && !instr.has_owner_check.unwrap_or(true) {
+                has_raw_handler = true;
+            }
+            if instr.uses_cpi {
+                if !instr.has_cpi_program_id_check {
+                    has_raw_unvalidated_cpi = true;
+                } else {
+                    has_typed_program = true;
+                }
+            }
+        }
+
+        let is_anchor_heavy = anchor_field_count > 5 && typed_anchor_fields > (anchor_field_count / 2);
+        let cpi_all_validated = graph.cpi_calls.iter().all(|c| c.target_program != "unknown_program");
+
+        graph.source_patterns = SourcePatterns {
+            is_anchor_heavy,
+            unchecked_fields,
+            has_raw_handler,
+            cpi_all_validated,
+            has_typed_program,
+            has_raw_unvalidated_cpi,
+            write_accounts,
+            cpi_accounts,
+            is_large_dex: graph.instructions.len() > 100, // proxy for >1000 LOC/instr
+            is_mixed_architecture: is_anchor_heavy && has_raw_handler,
+        };
+
         info!(
             "Mapper analysis complete: {} modules, {} instructions, {} accounts, {} CPI calls",
             graph.modules.len(),
@@ -394,3 +457,5 @@ fn extract_account_effects(body: Option<&str>) -> Vec<(String, AccountEffect)> {
 pub mod cross_analysis;
 pub mod ast_scanner;
 pub mod taint_engine;
+pub mod source_patterns;
+pub mod local_judge;

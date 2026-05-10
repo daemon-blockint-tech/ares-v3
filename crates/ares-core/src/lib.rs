@@ -82,6 +82,14 @@ pub struct Finding {
     pub confidence: f64, // 0.0 - 1.0
 }
 
+/// Represents a suppressed finding.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SuppressedFinding {
+    pub finding: Finding,
+    pub reason: String,
+    pub suppressed_by: String, // "local_judge" or "llm_judge"
+}
+
 /// Code location reference.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct CodeLocation {
@@ -99,6 +107,7 @@ pub struct CodeLocation {
 pub struct AuditReport {
     pub target: ProgramTarget,
     pub findings: Vec<Finding>,
+    pub suppressed_findings: Vec<SuppressedFinding>,
     pub metadata: ReportMetadata,
     pub summary: ReportSummary,
 }
@@ -206,6 +215,8 @@ pub struct AresConfig {
     pub llm_api_key: Option<String>,
     pub llm_base_url: Option<String>,
     pub llm_judge_enabled: bool,
+    /// Extended deterministic heuristics for the Local Judge
+    pub judge_extended: bool,
     /// Max LLM tokens per API call (budget throttle).
     pub llm_max_tokens_per_call: u32,
     /// Max findings sent to LLM per scan (prioritizes high-confidence).
@@ -237,6 +248,7 @@ impl Default for AresConfig {
             llm_api_key: None,
             llm_base_url: None,
             llm_judge_enabled: false,
+            judge_extended: false,
             llm_max_tokens_per_call: 2048,
             llm_max_findings_per_scan: 20,
             policy_file: Some(PathBuf::from("ares-policy.toml")),
