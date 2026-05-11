@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info:
+  title: ARES API (development)
+  version: 0.1.0
+  description: |
+    Minimal HTTP surface for ARES V3 scan orchestration.
+    Serve behind TLS and authentication before any production exposure.
+servers:
+  - url: http://127.0.0.1:8787
+    description: Default local bind (ARES_API_BIND)
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Liveness and version
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /v1/scan:
+    post:
+      operationId: scan
+      summary: Run ARES scan on a program directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanRequest'
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponse'
+        '400':
+          description: Invalid path or request
+        '500':
+          description: Scan pipeline error
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: ares-api
+        version:
+          type: string
+    ScanRequest:
+      type: object
+      required: [program_path]
+      properties:
+        program_path:
+          type: string
+          description: Directory containing Anchor `programs/` or Rust `src/`
+        full_pipeline:
+          type: boolean
+          default: true
+        fuzz:
+          type: boolean
+          default: false
+        poc:
+          type: boolean
+          default: false
+        max_duration_secs:
+          type: integer
+          format: int64
+          default: 3600
+        output_dir:
+          type: string
+          description: Override report output directory
+    ScanResponse:
+      type: object
+      required: [status, program_path, output_dir, message]
+      properties:
+        status:
+          type: string
+          example: completed
+        program_path:
+          type: string
+        output_dir:
+          type: string
+        message:
+          type: string

@@ -32,11 +32,18 @@ pub async fn execute(path: &Path) -> AresResult<()> {
         warn!("Config already exists: {:?}", config_path);
     }
 
-    // Create default policy file if not exists
+    // Create default policy file if not exists (must round-trip with PolicyEngine serde)
     let policy_path = path.join("ares-policy.toml");
     if !policy_path.exists() {
-        let default_policy = include_str!("../../../../ares-policy.toml.template");
-        tokio::fs::write(&policy_path, default_policy).await?;
+        let engine = ares_policy::PolicyEngine::default();
+        let body = toml::to_string_pretty(&engine).map_err(|e| {
+            ares_core::AresError::Config(format!("Failed to serialize default policy: {}", e))
+        })?;
+        let mut policy_toml = String::from(
+            "# ARES V3 Security Policy — defaults from PolicyEngine. Edit capabilities with care.\n\n",
+        );
+        policy_toml.push_str(&body);
+        tokio::fs::write(&policy_path, policy_toml).await?;
         info!("Created default policy: {:?}", policy_path);
     } else {
         warn!("Policy already exists: {:?}", policy_path);

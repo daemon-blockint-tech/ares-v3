@@ -202,6 +202,7 @@ impl Default for LlmProvider {
 
 /// Configuration for ARES CLI.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AresConfig {
     pub trident_path: Option<PathBuf>,
     pub solana_cli_path: Option<PathBuf>,

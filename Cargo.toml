@@ -5,6 +5,7 @@ members = [
     "crates/ares-trident",
     "crates/ares-mapper",
     "crates/ares-policy",
+    "crates/ares-api",
 ]
 resolver = "2"
 
@@ -41,6 +42,8 @@ config = "0.14"
 
 # HTTP & API
 reqwest = { version = "0.12", features = ["json"] }
+axum = { version = "0.8", features = ["json"] }
+tower-http = { version = "0.6", features = ["trace"] }
 
 # Filesystem & Process
 walkdir = "2.5"

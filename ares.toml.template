@@ -1,10 +1,10 @@
 # ARES V3 Configuration
 # Copy to ares.toml and customize for your environment
 
-# Path overrides for external tools (auto-detected from PATH if not set)
-trident_path = "trident"
-solana_cli_path = "solana"
-anchor_cli_path = "anchor"
+# Path overrides for external tools (omit or leave commented to use PATH)
+# trident_path = "/custom/path/to/trident"
+# solana_cli_path = "/custom/path/to/solana"
+# anchor_cli_path = "/custom/path/to/anchor"
 
 # Output directory for reports, artifacts, and proof-of-concept tests
 output_dir = "./ares-output"
@@ -53,8 +53,8 @@ mainnet_rpc_url = "https://api.mainnet-beta.solana.com"
 # Leave empty to clone nothing; validator still forks mainnet genesis config.
 mainnet_clone_accounts = []
 
-# Specific slot to fork from (null = latest).
-mainnet_fork_slot = null
+# Specific slot to fork from — omit for latest slot (default). Example:
+# mainnet_fork_slot = 300_000_000
 
 # Advanced settings
 [advanced]

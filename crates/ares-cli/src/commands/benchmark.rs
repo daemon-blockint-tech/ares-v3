@@ -1585,7 +1585,6 @@ fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns {
                 let mut fn_start: Option<usize> = None;
                 let mut fn_brace_depth = 0usize;
                 let mut fn_body_lines: Vec<&str> = Vec::new();
-                let mut fn_name = String::new();
 
                 for (idx, line) in lines.iter().enumerate() {
                     let trimmed = line.trim();
@@ -1595,7 +1594,6 @@ fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns {
                             && (trimmed.contains("update_") || trimmed.contains("set_")
                                 || trimmed.contains("_settings") || trimmed.contains("_params"));
                         if is_update_fn {
-                            fn_name = trimmed.to_string();
                             fn_start = Some(idx);
                             fn_brace_depth = trimmed.chars().filter(|&c| c == '{').count()
                                 .saturating_sub(trimmed.chars().filter(|&c| c == '}').count());

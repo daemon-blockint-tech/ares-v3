@@ -14,11 +14,26 @@ pub struct TridentTool {
 impl TridentTool {
     /// Discover `trident-cli` on the system PATH or use configured path.
     pub fn new(configured_path: Option<&Path>) -> AresResult<Self> {
-        let trident_path = if let Some(p) = configured_path {
-            p.to_path_buf()
-        } else {
-            which::which("trident")
-                .map_err(|_| AresError::ToolMissing("trident-cli not found on PATH. Install via: cargo install trident-cli".to_string()))?
+        let trident_path = match configured_path {
+            None => which::which("trident").map_err(|_| {
+                AresError::ToolMissing(
+                    "trident-cli not found on PATH. Install via: cargo install trident-cli".to_string(),
+                )
+            })?,
+            Some(p) if p.exists() => p.to_path_buf(),
+            Some(p) => {
+                let name = p
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("trident");
+                which::which(name).or_else(|_| which::which("trident")).map_err(|_| {
+                    AresError::ToolMissing(format!(
+                        "trident-cli not found at {:?} and not found on PATH as {:?}",
+                        p, name
+                    ))
+                })?
+            }
         };
 
         if !trident_path.exists() {

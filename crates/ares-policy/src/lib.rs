@@ -11,6 +11,7 @@ use tracing::{info, warn, error};
 /// - No destruction: delete operations outside sandbox never permitted
 /// - Human oversight: operations outside sandbox require explicit human approval
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PolicyEngine {
     pub constitution: Constitution,
     pub capabilities: HashMap<String, CapabilityLevel>,
@@ -34,7 +35,7 @@ pub struct CapabilityLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum PermissionLevel {
     Allow,
     Deny,
