@@ -459,3 +459,142 @@ pub mod ast_scanner;
 pub mod taint_engine;
 pub mod source_patterns;
 pub mod local_judge;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_program_graph_default() {
+        let graph = ProgramGraph::default();
+        assert!(graph.instructions.is_empty());
+        assert!(graph.accounts.is_empty());
+        assert!(graph.modules.is_empty());
+    }
+
+    #[test]
+    fn test_module_node_default() {
+        let node = ModuleNode::default();
+        assert_eq!(node.name, String::new());
+        assert!(!node.is_entrypoint);
+    }
+
+    #[test]
+    fn test_instruction_node_default() {
+        let node = InstructionNode::default();
+        assert_eq!(node.name, String::new());
+        assert!(!node.uses_cpi);
+    }
+
+    #[test]
+    fn test_account_node_default() {
+        let node = AccountNode::default();
+        assert_eq!(node.name, String::new());
+        assert!(!node.is_mutable);
+    }
+
+    #[test]
+    fn test_account_effect_clone_and_eq() {
+        let a = AccountEffect::Read;
+        let b = AccountEffect::Read;
+        let c = AccountEffect::Write;
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_extract_account_effects_handles_ctx_accounts() {
+        let body = Some(r#"
+            let foo = &ctx.accounts.foo;
+            let bar = &mut ctx.accounts.bar;
+            msg!("hello");
+            ctx.accounts.baz.load_mut()?;
+        "#);
+        let effects = extract_account_effects(body);
+        assert!(!effects.is_empty(), "Should detect at least one effect");
+        // foo is read-only (no mut)
+        assert!(effects.contains(&("foo".to_string(), AccountEffect::Read)));
+    }
+
+    #[test]
+    fn test_extract_account_effects_empty() {
+        let effects = extract_account_effects(None);
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn test_extract_account_effects_no_accounts() {
+        let effects = extract_account_effects(Some("let x = 1; let y = 2;"));
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn test_extract_account_effects_write() {
+        let effects = extract_account_effects(Some("ctx.accounts.config.data = 42;"));
+        assert!(effects.contains(&("config".to_string(), AccountEffect::Write)));
+    }
+
+    #[test]
+    fn test_extract_account_effects_cpi_invoke() {
+        let effects = extract_account_effects(Some("ctx.accounts.token_program.invoke(ix)?;"));
+        assert!(effects.contains(&("token_program".to_string(), AccountEffect::CpiPass)));
+    }
+
+    #[test]
+    fn test_extract_account_effects_cpi_signed() {
+        let effects = extract_account_effects(Some("ctx.accounts.router.invoke_signed(ix, &[seeds])?;"));
+        assert!(effects.contains(&("router".to_string(), AccountEffect::CpiPass)));
+    }
+
+    #[test]
+    fn test_extract_function_body_simple() {
+        let text = "fn foo() {\n    let x = 1;\n}";
+        let body = extract_function_body(text);
+        assert!(body.is_some(), "Should extract body from multi-line function");
+    }
+
+    #[test]
+    fn test_extract_function_body_nested() {
+        let text = "fn foo() {\n    if true {\n        inner();\n    }\n}";
+        let body = extract_function_body(text);
+        assert!(body.is_some());
+        let b = body.unwrap();
+        assert!(b.contains("inner()"));
+    }
+
+    #[test]
+    fn test_extract_function_body_no_braces() {
+        let body = extract_function_body("not a function");
+        assert!(body.is_none());
+    }
+
+    #[test]
+    fn test_extract_account_effects_mut_account() {
+        // ctx.accounts.x = conn_text_load_mut → Write
+        let effects = extract_account_effects(Some("\nctx.accounts.config.load_mut()?\n"));
+        assert!(effects.contains(&("config".to_string(), AccountEffect::Write)));
+    }
+
+    #[test]
+    fn test_mapper_agent_new() {
+        let path = PathBuf::from("/tmp");
+        let agent = MapperAgent::new(&path);
+        assert_eq!(agent.program_path, path);
+    }
+
+    #[test]
+    fn test_mapper_new_canonicalizes() {
+        let path = PathBuf::from(".");
+        let agent = MapperAgent::new(&path);
+        // program_path should be a canonical or absolute-like path
+        assert!(!agent.program_path.as_os_str().is_empty());
+    }
+
+    #[test]
+    fn test_source_patterns_default() {
+        let sp = SourcePatterns::default();
+        assert!(!sp.is_anchor_heavy);
+        assert_eq!(sp.unchecked_fields, 0);
+        assert!(sp.write_accounts.is_empty());
+    }
+}

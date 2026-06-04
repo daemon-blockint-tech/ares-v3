@@ -5,7 +5,10 @@ pub mod validator;
 pub mod scorer;
 pub mod llm_judge;
 pub mod tui;
-pub mod agent;
+
+/// Re-export SDK crates for unified access
+pub use ares_orchestrator as agent;
+pub use ares_report;
 
 /// Report format options for export.
 #[derive(clap::ValueEnum, Clone, Debug)]

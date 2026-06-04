@@ -5,6 +5,8 @@ members = [
     "crates/ares-trident",
     "crates/ares-mapper",
     "crates/ares-policy",
+    "crates/ares-orchestrator",
+    "crates/ares-report",
 ]
 resolver = "2"
 
@@ -47,6 +49,7 @@ reqwest = { version = "0.12", features = ["json"] }
 walkdir = "2.5"
 tempfile = "3.13"
 which = "6.0"
+rayon = "1.10"
 
 # AST / Parsing
 syn = { version = "2.0", features = ["full", "visit"] }
@@ -61,3 +64,5 @@ ares-core = { path = "crates/ares-core" }
 ares-trident = { path = "crates/ares-trident" }
 ares-mapper = { path = "crates/ares-mapper" }
 ares-policy = { path = "crates/ares-policy" }
+ares-orchestrator = { path = "crates/ares-orchestrator" }
+ares-report = { path = "crates/ares-report" }

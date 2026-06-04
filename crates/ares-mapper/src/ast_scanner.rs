@@ -4,6 +4,7 @@ use syn::{visit::Visit, Attribute, ItemFn, ItemStruct, Expr, Pat, PatType, FnArg
 use syn::spanned::Spanned;
 use tracing::{info, warn};
 use walkdir::WalkDir;
+use rayon::prelude::*;
 use crate::taint_engine::TaintEngine;
 
 /// Phase-2 AST-based scanner for Solana programs.
@@ -696,23 +697,30 @@ fn pat_to_string(pat: &Pat) -> String {
 }
 
 /// Run AST-based analysis across all `.rs` files in a program directory.
+/// Uses rayon for parallel file scanning on multi-core systems.
 pub fn scan_directory_ast(dir: &Path) -> AstScanner {
-    let mut combined = AstScanner::default();
-
-    for entry in WalkDir::new(dir)
+    let files: Vec<(PathBuf, String)> = WalkDir::new(dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().and_then(|e| e.to_str()) == Some("rs"))
-    {
-        let path = entry.path();
-        if let Ok(content) = std::fs::read_to_string(path) {
-            let file_scanner = analyze_file(path, &content);
-            combined.findings.extend(file_scanner.findings);
-            combined.anchor_accounts.extend(file_scanner.anchor_accounts);
-            combined.solitaire_accounts.extend(file_scanner.solitaire_accounts);
-            combined.instruction_handlers.extend(file_scanner.instruction_handlers);
-            combined.cpi_calls.extend(file_scanner.cpi_calls);
-        }
+        .filter_map(|e| {
+            let path = e.path().to_path_buf();
+            std::fs::read_to_string(&path).ok().map(|content| (path, content))
+        })
+        .collect();
+
+    let scanners: Vec<AstScanner> = files
+        .par_iter()
+        .map(|(path, content)| analyze_file(path, content))
+        .collect();
+
+    let mut combined = AstScanner::default();
+    for scanner in scanners {
+        combined.findings.extend(scanner.findings);
+        combined.anchor_accounts.extend(scanner.anchor_accounts);
+        combined.solitaire_accounts.extend(scanner.solitaire_accounts);
+        combined.instruction_handlers.extend(scanner.instruction_handlers);
+        combined.cpi_calls.extend(scanner.cpi_calls);
     }
 
     info!(

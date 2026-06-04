@@ -1,24 +1,20 @@
 [package]
-name = "ares-mapper"
+name = "ares-report"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Program structure analysis and AST graph building for ARES V3"
+description = "Report generation for ARES V3 — Markdown, PDF, and JSON output"
 
 [dependencies]
 ares-core = { workspace = true }
 
 anyhow = { workspace = true }
-tokio = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-walkdir = { workspace = true }
-syn = { workspace = true }
-quote = { workspace = true }
-proc-macro2 = { workspace = true }
-rayon = { workspace = true }
+chrono = "0.4"
+printpdf = "0.3.4"
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
