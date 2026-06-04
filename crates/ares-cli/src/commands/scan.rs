@@ -11,6 +11,7 @@ use std::time::Instant;
 use tracing::{info, warn};
 
 /// Execute a full security scan on a Solana program.
+#[allow(clippy::too_many_arguments)]
 pub async fn execute(
     program_path: &Path,
     config: &AresConfig,

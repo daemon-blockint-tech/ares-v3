@@ -163,11 +163,11 @@ impl<'a> App<'a> {
         match (key.code, key.modifiers) {
             (KeyCode::Esc, _) => {
                 self.should_quit = true;
-                return true;
+                true
             }
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                 self.should_quit = true;
-                return true;
+                true
             }
             (KeyCode::PageUp, _) => {
                 let current = self

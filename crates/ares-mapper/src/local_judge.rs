@@ -36,20 +36,18 @@ impl LocalJudge {
             if matches!(
                 cat,
                 VulnerabilityCategory::TypeCosplay | VulnerabilityCategory::OwnershipCheck
-            ) {
-                if patterns.is_anchor_heavy && patterns.unchecked_fields == 0 {
+            )
+                && patterns.is_anchor_heavy && patterns.unchecked_fields == 0 {
                     should_suppress = true;
                     reason = "Anchor-heavy protocol with fully typed accounts automatically validates discriminator/ownership.".to_string();
                 }
-            }
 
             // Rule 2: Signer Authorization
-            if matches!(cat, VulnerabilityCategory::SignerAuthorization) {
-                if patterns.is_anchor_heavy && !patterns.has_raw_handler {
+            if matches!(cat, VulnerabilityCategory::SignerAuthorization)
+                && patterns.is_anchor_heavy && !patterns.has_raw_handler {
                     should_suppress = true;
                     reason = "Anchor-heavy protocol with no raw AccountInfo handlers uses Anchor's Signer<'info> for validation.".to_string();
                 }
-            }
 
             // Rule 3: Arbitrary CPI
             if matches!(cat, VulnerabilityCategory::ArbitraryCpi) {
@@ -117,7 +115,7 @@ impl LocalJudge {
 mod tests {
     use super::*;
     use ares_core::{CodeLocation, Finding, Severity, VulnerabilityCategory};
-    use std::collections::HashSet;
+    
 
     fn dummy_finding(category: VulnerabilityCategory) -> Finding {
         Finding {
@@ -138,10 +136,10 @@ mod tests {
     fn test_suppress_type_cosplay() {
         let judge = LocalJudge::new(false);
         let findings = vec![dummy_finding(VulnerabilityCategory::TypeCosplay)];
-        let mut patterns = SourcePatterns::default();
-
-        patterns.is_anchor_heavy = true;
-        patterns.unchecked_fields = 0;
+        let patterns = SourcePatterns {
+            is_anchor_heavy: true,
+            ..Default::default()
+        };
 
         let (retained, suppressed) = judge.judge(findings, &patterns);
         assert_eq!(retained.len(), 0);
@@ -153,10 +151,11 @@ mod tests {
     fn test_retain_type_cosplay() {
         let judge = LocalJudge::new(false);
         let findings = vec![dummy_finding(VulnerabilityCategory::TypeCosplay)];
-        let mut patterns = SourcePatterns::default();
-
-        patterns.is_anchor_heavy = true;
-        patterns.unchecked_fields = 1; // Unchecked field means we shouldn't suppress
+        let patterns = SourcePatterns {
+            is_anchor_heavy: true,
+            unchecked_fields: 1,
+            ..Default::default()
+        };
 
         let (retained, suppressed) = judge.judge(findings, &patterns);
         assert_eq!(retained.len(), 1);

@@ -349,7 +349,7 @@ fn build_pdf(json: &Value, output: &Path) -> AresResult<()> {
         9.0,
     );
 
-    let file = File::create(output).map_err(|e| ares_core::AresError::Io(e))?;
+    let file = File::create(output).map_err(ares_core::AresError::Io)?;
     doc.save(&mut BufWriter::new(file))
         .map_err(|e| ares_core::AresError::Execution(format!("Failed to write PDF: {:?}", e)))?;
 
@@ -360,7 +360,7 @@ fn build_pdf(json: &Value, output: &Path) -> AresResult<()> {
 /// Pure Rust — no external binaries.
 pub fn generate_scan_pdf(report: &ares_core::AuditReport, output: &Path) -> AresResult<()> {
     let (doc, page, layer) = PdfDocument::new(
-        &format!("ARES Audit Report — {}", report.target.name),
+        format!("ARES Audit Report — {}", report.target.name),
         Mm(210.0),
         Mm(297.0),
         "Layer 1",
@@ -491,7 +491,7 @@ pub fn generate_scan_pdf(report: &ares_core::AuditReport, output: &Path) -> Ares
         9.0,
     );
 
-    let file = File::create(output).map_err(|e| ares_core::AresError::Io(e))?;
+    let file = File::create(output).map_err(ares_core::AresError::Io)?;
     doc.save(&mut BufWriter::new(file))
         .map_err(|e| ares_core::AresError::Execution(format!("Failed to write PDF: {:?}", e)))?;
 

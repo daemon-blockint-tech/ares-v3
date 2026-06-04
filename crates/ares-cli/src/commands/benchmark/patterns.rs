@@ -1,3 +1,5 @@
+#![allow(clippy::needless_range_loop, unused_variables, unused_assignments)]
+
 /// Scanned source-code patterns for a single protocol. Built once per protocol.
 #[derive(Debug, Default, Clone)]
 pub struct SourcePatterns {
@@ -160,11 +162,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             }
             if in_accounts_struct
                 && (line.trim().starts_with("pub ") || line.trim().starts_with("#[account("))
-            {
-                if line.contains("AccountInfo<") || line.contains("UncheckedAccount") {
+                && (line.contains("AccountInfo<") || line.contains("UncheckedAccount")) {
                     patterns.has_account_info_unchecked = true;
                 }
-            }
             if in_accounts_struct && line.trim().starts_with("}") {
                 in_accounts_struct = false;
             }
@@ -232,8 +232,7 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         if !is_test_or_util_file
             && code.contains("try_from_slice")
             && !code.contains("discriminator")
-        {
-            if !code.contains("Account::try_from") && !code.contains("AccountLoad") {
+            && !code.contains("Account::try_from") && !code.contains("AccountLoad") {
                 let safe_prefixes = [
                     "Pubkey::try_from_slice",
                     "u128::try_from_slice",
@@ -252,7 +251,6 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     patterns.has_try_from_slice = true;
                 }
             }
-        }
 
         // ── Unchecked numeric downcast (u128→u64, etc.) ──
         // Require u128 or i128 to also be present: `i64 as u64` (e.g. timestamp casts)
@@ -351,18 +349,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 .collect();
             for l in cpi_lines {
                 let l_lower = l.to_lowercase();
-                if l_lower.contains("cpi_program")
+                if (l_lower.contains("cpi_program")
                     || l_lower.contains("plugin_program")
                     || l_lower.contains("program.clone()")
-                    || l_lower.contains("handler")
-                {
-                    if !l_lower.contains("token_program")
+                    || l_lower.contains("handler"))
+                    && !l_lower.contains("token_program")
                         && !l_lower.contains("system_program")
                         && !l_lower.contains("associated_token")
                     {
                         patterns.has_cpi_context_new_variable = true;
                     }
-                }
             }
         }
 
@@ -509,11 +505,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 lower.contains("pub ") && (lower.contains("_pda") || lower.contains("pda_"));
             let has_named_pda = body.to_lowercase().contains("callback_pda")
                 || body.to_lowercase().contains("pool_authority_pda");
-            if has_pda_comment || has_pda_field || has_named_pda {
-                if !body_code.contains("has_one") && !body_code.contains("constraint =") {
+            if (has_pda_comment || has_pda_field || has_named_pda)
+                && !body_code.contains("has_one") && !body_code.contains("constraint =") {
                     patterns.has_pda_without_constraint = true;
                 }
-            }
         }
 
         // ── init_if_needed with fixed / literal seeds (re-initializable) ──
@@ -1103,7 +1098,7 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                                     }
                                     // Only flag if exactly 1 field is missing (specific oversight)
                                     // and input struct has >= 5 fields (real settings struct)
-                                    if gap_count >= 1 && gap_count <= 2 && fields.len() >= 5 {
+                                    if (1..=2).contains(&gap_count) && fields.len() >= 5 {
                                         patterns.has_settings_field_write_gap = true;
                                     }
                                 }
@@ -1310,12 +1305,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                             .unwrap_or(b.as_str());
                         if a_stripped == b_stripped && !a_stripped.is_empty() && (a != b)
                         // only if they actually differ (suffixes were stripped)
-                        {
-                            if no_key_constraint {
+                            && no_key_constraint {
                                 patterns.has_duplicate_mutable_pair = true;
                                 break 'dup_outer;
                             }
-                        }
                         // Pattern 2: same type name (exact match after stripping numeric/underscore suffix)
                         // e.g., "user_account_1" and "user_account_2" share base "user_account"
                         // NOTE: substring containment (e.g., "vault" in "vault_authority") is intentionally
@@ -1325,12 +1318,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         if !a_base.is_empty() && !b_base.is_empty()
                             && a_base == b_base  // exact base match only, not substring
                             && a != b
-                        {
-                            if no_key_constraint {
+                            && no_key_constraint {
                                 patterns.has_duplicate_mutable_pair = true;
                                 break 'dup_outer;
                             }
-                        }
                     }
                 }
             }

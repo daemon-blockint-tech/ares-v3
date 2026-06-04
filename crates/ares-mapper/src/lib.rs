@@ -169,19 +169,19 @@ impl MapperAgent {
                             || b.contains("constraint = owner")
                     });
 
-                    let has_cpi_check = body.as_ref().map_or(false, |b| {
+                    let has_cpi_check = body.as_ref().is_some_and(|b| {
                         b.contains("program_id")
                             || b.contains("key() !=")
                             || b.contains("expected_program")
                     });
 
-                    let uses_cpi = body.as_ref().map_or(false, |b| {
+                    let uses_cpi = body.as_ref().is_some_and(|b| {
                         b.contains("invoke(")
                             || b.contains("invoke_signed(")
                             || b.contains("CpiContext")
                     });
 
-                    let has_arithmetic = body.as_ref().map_or(false, |b| {
+                    let has_arithmetic = body.as_ref().is_some_and(|b| {
                         b.contains(".checked_add(")
                             || b.contains(".checked_sub(")
                             || b.contains(".checked_mul(")
@@ -265,11 +265,11 @@ impl MapperAgent {
                                 }
                             });
 
-                            let is_signer = struct_body.as_ref().map_or(false, |b| {
+                            let is_signer = struct_body.as_ref().is_some_and(|b| {
                                 b.contains("Signer<") || b.contains("signer: Signer")
                             });
 
-                            let is_mutable = struct_body.as_ref().map_or(false, |b| {
+                            let is_mutable = struct_body.as_ref().is_some_and(|b| {
                                 b.contains("mut,") || b.contains("mut]") || b.contains("mut)")
                             });
 
@@ -337,7 +337,7 @@ impl MapperAgent {
         for acc in &graph.accounts {
             // Very simplified heuristic for fields based on AccountNode
             anchor_field_count += 1;
-            if acc.is_signer || acc.has_one_constraints.len() > 0 || acc.seeds.is_some() {
+            if acc.is_signer || !acc.has_one_constraints.is_empty() || acc.seeds.is_some() {
                 typed_anchor_fields += 1;
             } else if !acc.is_initialized_check.unwrap_or(false) && !acc.is_signer {
                 unchecked_fields += 1;

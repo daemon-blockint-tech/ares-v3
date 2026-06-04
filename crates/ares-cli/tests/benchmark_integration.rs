@@ -74,24 +74,24 @@ async fn test_benchmark_against_solana_attack_vectors() {
             .and_then(|d| d.as_f64())
             .expect("Each result should have a detection_rate");
         assert!(
-            detection_rate >= 0.0 && detection_rate <= 1.0,
+            (0.0..=1.0).contains(&detection_rate),
             "Detection rate must be in [0.0, 1.0]"
         );
 
         // Phase 6: precision / recall / f1_score must be present when ground truth loaded
         if let Some(p) = r.get("precision").and_then(|v| v.as_f64()) {
             any_ground_truth = true;
-            assert!(p >= 0.0 && p <= 1.0, "Precision must be in [0.0, 1.0]");
+            assert!((0.0..=1.0).contains(&p), "Precision must be in [0.0, 1.0]");
             let rec = r
                 .get("recall")
                 .and_then(|v| v.as_f64())
                 .expect("Recall must accompany precision");
-            assert!(rec >= 0.0 && rec <= 1.0, "Recall must be in [0.0, 1.0]");
+            assert!((0.0..=1.0).contains(&rec), "Recall must be in [0.0, 1.0]");
             let f1 = r
                 .get("f1_score")
                 .and_then(|v| v.as_f64())
                 .expect("F1 score must accompany precision");
-            assert!(f1 >= 0.0 && f1 <= 1.0, "F1 score must be in [0.0, 1.0]");
+            assert!((0.0..=1.0).contains(&f1), "F1 score must be in [0.0, 1.0]");
         }
 
         let execution_time = r

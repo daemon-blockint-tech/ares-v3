@@ -169,10 +169,10 @@ impl TaintEngine {
                 recv_taint
             }
             Expr::Field(field_expr) => {
-                let base_taint = self.expr_taint(&field_expr.base);
+                
                 // Handle field access: expr.field
                 // For now, propagate base taint
-                base_taint
+                self.expr_taint(&field_expr.base)
             }
             _ => TaintState {
                 is_tainted: false,

@@ -3,8 +3,6 @@
 > **IMPORTANT DISCLAIMER**: ARES V3 is a **static analysis triage assistant**, not a replacement for human auditors. Metrics below measure how many **published audit findings** (ground truth) are recalled by automated analysis, plus how many **additional findings** require manual triage. Ground truth is inherently incomplete — auditors miss bugs too.
 
 > **Benchmark Architecture Note**: ARES V3 operates a two-segment benchmark.
-> - **Segment A — Stub Regression Suite**: 11 deterministic reproduction stubs (50–150 LOC each) that isolate single vulnerability classes. These validate pattern correctness and prevent regression. **~100% detection is expected and achieved.**
-> - **Segment B — Real-World Capability Assessment**: 9 production repositories (10K+ LOC, multi-program workspaces) scanned with Phase-1 regex + Phase-2 AST + Phase-3 Taint Engine + **Phase-7 deterministic local judge**. **Honest real-world performance**: we recall 75-100% of *published* audit findings while flagging 3-8 additional categories per protocol that require manual triage. This is normal for static analysis — the value is in **directing auditor attention**, not replacing auditors.
 
 ## Segment A: Stub Regression Suite (Deterministic Pattern Validation)
 

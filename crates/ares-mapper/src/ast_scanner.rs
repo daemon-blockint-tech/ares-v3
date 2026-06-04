@@ -222,7 +222,7 @@ struct SolanaVisitor<'a> {
 impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         // Detect Anchor #[derive(Accounts)] structs
-        let has_derive_accounts = node.attrs.iter().any(|attr| is_derive_accounts_attr(attr));
+        let has_derive_accounts = node.attrs.iter().any(is_derive_accounts_attr);
 
         if has_derive_accounts {
             let mut account_struct = AnchorAccountStruct {
@@ -299,7 +299,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
         let has_derive_from_accounts = node
             .attrs
             .iter()
-            .any(|attr| is_derive_from_accounts_attr(attr));
+            .any(is_derive_from_accounts_attr);
 
         if has_derive_from_accounts {
             let mut account_struct = SolitaireAccountStruct {
@@ -422,25 +422,22 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
 
         // Extract parameters
         for arg in &node.sig.inputs {
-            match arg {
-                FnArg::Typed(PatType { pat, ty, .. }) => {
-                    let param_name = pat_to_string(pat);
-                    let ty_str = quote::quote!(#ty).to_string();
-                    let is_ctx = ty_str.contains("Context<") || ty_str.contains("ExecutionContext");
-                    let is_account_info =
-                        ty_str.contains("AccountInfo") || ty_str.contains("Info<");
+            if let FnArg::Typed(PatType { pat, ty, .. }) = arg {
+                let param_name = pat_to_string(pat);
+                let ty_str = quote::quote!(#ty).to_string();
+                let is_ctx = ty_str.contains("Context<") || ty_str.contains("ExecutionContext");
+                let is_account_info =
+                    ty_str.contains("AccountInfo") || ty_str.contains("Info<");
 
-                    handler.params.push(HandlerParam {
-                        name: param_name.clone(),
-                        ty: ty_str.clone(),
-                        is_ctx,
-                        is_account_info,
-                    });
+                handler.params.push(HandlerParam {
+                    name: param_name.clone(),
+                    ty: ty_str.clone(),
+                    is_ctx,
+                    is_account_info,
+                });
 
-                    // Track local variable types for data-flow
-                    self.local_vars.insert(param_name, ty_str);
-                }
-                _ => {}
+                // Track local variable types for data-flow
+                self.local_vars.insert(param_name, ty_str);
             }
         }
 
@@ -510,11 +507,9 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                         severity: "High".to_string(),
                         file: self.path.clone(),
                         line: node.span().start().line,
-                        description: format!(
-                            "Call to `_unchecked` unpack function skips discriminator/type validation. \
+                        description: "Call to `_unchecked` unpack function skips discriminator/type validation. \
                             This is an account-data-matching vulnerability: without checking the account \
-                            discriminator, a different account type with the same size could be substituted.",
-                        ),
+                            discriminator, a different account type with the same size could be substituted.".to_string(),
                         confidence: 0.80,
                     });
                 }
@@ -524,12 +519,10 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                         severity: "High".to_string(),
                         file: self.path.clone(),
                         line: node.span().start().line,
-                        description: format!(
-                            "Call to `_unchecked` oracle price function skips account owner validation. \
+                        description: "Call to `_unchecked` oracle price function skips account owner validation. \
                             The checked version verifies the oracle account is owned by the expected oracle \
                             program; the unchecked version trusts the account data without owner verification, \
-                            allowing a forged oracle account to manipulate prices.",
-                        ),
+                            allowing a forged oracle account to manipulate prices.".to_string(),
                         confidence: 0.85,
                     });
                     self.scanner.findings.push(AstFinding {
@@ -537,11 +530,9 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                         severity: "Medium".to_string(),
                         file: self.path.clone(),
                         line: node.span().start().line,
-                        description: format!(
-                            "Call to `_unchecked` oracle price function skips staleness/validation checks. \
+                        description: "Call to `_unchecked` oracle price function skips staleness/validation checks. \
                             The checked version validates price freshness; the unchecked version returns \
-                            potentially stale or invalid data without validation.",
-                        ),
+                            potentially stale or invalid data without validation.".to_string(),
                         confidence: 0.70,
                     });
                 }
@@ -551,11 +542,9 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                         severity: "Medium".to_string(),
                         file: self.path.clone(),
                         line: node.span().start().line,
-                        description: format!(
-                            "Call to `_unchecked` function bypasses validation. \
+                        description: "Call to `_unchecked` function bypasses validation. \
                             The `_unchecked` naming convention signals that the checked \
-                            variant performs security validation this version skips.",
-                        ),
+                            variant performs security validation this version skips.".to_string(),
                         confidence: 0.65,
                     });
                 }
@@ -575,11 +564,9 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 severity: "Medium".to_string(),
                 file: self.path.clone(),
                 line: node.span().start().line,
-                description: format!(
-                    "Unsafe byte-level mutation/cast via `bytemuck`. bytes_of_mut bypasses \
+                description: "Unsafe byte-level mutation/cast via `bytemuck`. bytes_of_mut bypasses \
                     type checking for account mutation; cast/cast_slice reinterprets bytes \
-                    without validation. Use Anchor's typed account system or explicit checks.",
-                ),
+                    without validation. Use Anchor's typed account system or explicit checks.".to_string(),
                 confidence: 0.75,
             });
         }
@@ -656,9 +643,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 severity: "High".to_string(),
                 file: self.path.clone(),
                 line: node.span().start().line,
-                description: format!(
-                    "`try_from_slice` called without discriminator check. Same-size types can be confused, leading to type-cosplay attacks. Use Anchor's `Account<'info, T>` or verify discriminator before deserialization.",
-                ),
+                description: "`try_from_slice` called without discriminator check. Same-size types can be confused, leading to type-cosplay attacks. Use Anchor's `Account<'info, T>` or verify discriminator before deserialization.".to_string(),
                 confidence: if is_test_or_util { 0.40 } else { 0.80 },
             });
         }
@@ -670,9 +655,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 severity: "Critical".to_string(),
                 file: self.path.clone(),
                 line: node.span().start().line,
-                description: format!(
-                    "Manual lamport drain detected: `lamports.borrow_mut() = 0`. This is an account-closure anti-pattern. The account can be revived by sending lamports back. Use Anchor's `close` constraint instead.",
-                ),
+                description: "Manual lamport drain detected: `lamports.borrow_mut() = 0`. This is an account-closure anti-pattern. The account can be revived by sending lamports back. Use Anchor's `close` constraint instead.".to_string(),
                 confidence: 0.90,
             });
         }
@@ -686,9 +669,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                     severity: "Critical".to_string(),
                     file: self.path.clone(),
                     line: node.span().start().line,
-                    description: format!(
-                        "`init_if_needed` with fixed seeds but no `is_initialized` guard. An attacker can re-initialize and overwrite existing account data.",
-                    ),
+                    description: "`init_if_needed` with fixed seeds but no `is_initialized` guard. An attacker can re-initialize and overwrite existing account data.".to_string(),
                     confidence: 0.85,
                 });
             }

@@ -217,7 +217,6 @@ pub async fn execute(
                 && has_swap_instruction2
                 && instr_count > 50
                 && !sp2.has_check_on_seeded_no_has_one
-                && (is_anchor_heavy2 || sp2.has_hardcoded_endpoint_id)
                 && sp2.has_hardcoded_endpoint_id
             // extra safety: only for LayerZero OApp (Dexalot); MetaDAO has no ENDPOINT_ID
             {
@@ -454,7 +453,7 @@ pub async fn execute(
             false_positives: fp_count,
             false_negatives: fn_count,
             known_audit_recall,
-            fp_rate: if detected_set.len() > 0 {
+            fp_rate: if !detected_set.is_empty() {
                 fp_count as f64 / detected_set.len() as f64
             } else {
                 0.0

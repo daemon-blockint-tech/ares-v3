@@ -45,7 +45,7 @@ impl<'a> SemanticValidator<'a> {
                     // Downgraded but kept
                     warn!("Finding {} downgraded: {}", f.id, reason);
                     // Lower confidence slightly
-                    f.confidence = f.confidence * 0.9;
+                    f.confidence *= 0.9;
                     validated.push(f);
                 }
                 ValidationResult {

@@ -114,7 +114,7 @@ impl CrossInstructionAnalyzer {
 
                         // Check if the reader re-validates the account
                         let reader_instr = graph.instructions.iter().find(|i| i.name == *reader);
-                        let revalidates = reader_instr.map_or(false, |i| {
+                        let revalidates = reader_instr.is_some_and(|i| {
                             // If the reader has a signer or owner check, we consider it re-validated
                             i.has_signer_check.unwrap_or(false)
                                 || i.has_owner_check.unwrap_or(false)
@@ -223,7 +223,7 @@ impl CrossInstructionAnalyzer {
                             // Look for any account in the graph matching this writer that has init check
                             graph.accounts.iter().find(|a| a.name == *account)
                         })
-                        .map_or(false, |a| a.is_initialized_check.unwrap_or(false));
+                        .is_some_and(|a| a.is_initialized_check.unwrap_or(false));
 
                     if !has_init_check {
                         findings.push(CrossInstructionFinding {
