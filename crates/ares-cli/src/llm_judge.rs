@@ -1,4 +1,4 @@
-use ares_core::{Finding, LlmProvider};
+use ares_core::{Finding, LlmProvider, VulnerabilityCategory};
 use ares_mapper::ProgramGraph;
 use tracing::{info, warn};
 
@@ -51,7 +51,7 @@ impl<'a> LlmJudge<'a> {
 
         let max_findings = self.config.llm_max_findings_per_scan.max(1);
         let mut prioritized = findings.clone();
-        prioritized.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+        prioritized.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
 
         let (to_evaluate, skipped): (Vec<_>, Vec<_>) = if prioritized.len() > max_findings {
             info!(
@@ -384,79 +384,79 @@ pub fn extract_findings(results: Vec<LlmValidationResult>) -> Vec<Finding> {
 }
 
 /// Returns category-specific Solana security context for the LLM prompt.
-pub fn category_specific_context(category: &str) -> String {
+pub fn category_specific_context(category: &VulnerabilityCategory) -> String {
     match category {
-        "signer-authorization" => {
+        VulnerabilityCategory::SignerAuthorization => {
             r#"Solana transactions require explicit signer checks. A missing `Signer` constraint in Anchor or manual `is_signer` check allows arbitrary account substitution. Check whether:
 - The instruction requires a privileged action (e.g., withdrawing funds, upgrading state).
 - The account in question could be supplied by an attacker without the legitimate keypair.
 - `sysvar::rent` or `system_program` address substitution is possible.
 "#.to_string()
         }
-        "arbitrary-cpi" => {
+        VulnerabilityCategory::ArbitraryCpi => {
             r#"Cross-Program Invocations (CPI) must validate the target program ID. Anchor's `CpiContext` or `invoke_signed` without program-id checks can redirect to a malicious program. Evaluate:
 - Whether the CPI target is user-controlled (e.g., passed as an account).
 - If `AccountInfo` is used instead of typed `Program<...>` for the CPI target.
 - Whether `invoke_unchecked` or raw `solana_program::program::invoke` is used without prior validation.
 "#.to_string()
         }
-        "reentrancy-risk" | "reentrancy" => {
+        VulnerabilityCategory::ReentrancyRisk => {
             r#"Solana reentrancy occurs when a CPI back into the same program modifies state before the caller finishes. Although Solana lacks native reentrancy, Anchor `realloc`+CPI or manual account reloading can simulate it. Check:
 - If the program CPIs into a PDA it owns and re-enters its own instructions.
 - Whether account state is read, CPI issued, then the same state read again without re-validation.
 - If `AccountReload` or `try_borrow_account` after CPI is missing.
 "#.to_string()
         }
-        "initialization-frontrunning" | "re-initialization" => {
+        VulnerabilityCategory::InitializationFrontrunning => {
             r#"Account initialization can be front-run because anyone can create an account at a deterministically derived PDA or address if the discriminator/size match. Consider:
 - Whether the init PDA is derived from attacker-controlled seeds (e.g., user pubkey alone).
 - If `init_if_needed` is used without a signer gate that ensures only the legitimate owner can initialize.
 - Whether the initialization logic performs a privileged action that cannot be undone.
 "#.to_string()
         }
-        "revival-attack" | "account-reloading" => {
+        VulnerabilityCategory::AccountReloading => {
             r#"A closed account can be revived with different data but the same address (and lamports if rent-exempt). If the program does not zero the discriminator or mark the account truly unusable, an attacker can re-create it later with malicious state. Evaluate:
 - Whether `close` constraints zero the discriminator or set an explicit tombstone.
 - If the program later assumes an account with a given address must be initialized by itself.
 - Whether `init_if_needed` after close is disallowed.
 "#.to_string()
         }
-        "account-data-matching" => {
+        VulnerabilityCategory::AccountDataMatching => {
             r#"Solana account data can be modified during a CPI by the callee. If the caller reads account state, performs a CPI, then continues using the old state without reloading, the data may be stale or malicious. Check:
 - Whether mutable `AccountInfo` accounts are passed into CPIs and then used afterward.
 - If `AccountReload` or re-deserialization after CPI is present.
 - Whether the instruction relies on account balances or sizes that could change mid-CPI.
 "#.to_string()
         }
-        "duplicate-mutable-accounts" => {
+        VulnerabilityCategory::DuplicateMutableAccounts => {
             r#"Passing the same account twice in an instruction's account list, with at least one mutable, can cause overlapping borrows or race-like writes in program logic. Assess:
 - Whether the instruction iterates over accounts and could apply the same mutable operation twice.
 - If Anchor `HasOne` or custom deduplication checks are missing.
 - Whether the vulnerability is reachable by supplying identical pubkeys in the transaction.
 "#.to_string()
         }
-        "type-cosplay" => {
+        VulnerabilityCategory::TypeCosplay => {
             r#"Type cosplay occurs when an untyped `AccountInfo` is cast to a typed `Account<T>` without discriminator validation. If two account types have compatible layouts but different discriminators, an attacker can substitute one for another. Check:
 - Whether the account uses `AccountInfo` or `UncheckedAccount` without manual `try_from` / discriminator check.
 - If the account type has a unique Anchor discriminator that is validated on every deserialization.
 - Whether the instruction trusts account data layout alone for authorization.
 "#.to_string()
         }
-        "pda-privileges" => {
+        VulnerabilityCategory::PdaPrivileges => {
             r#"Program Derived Addresses (PDAs) can sign on behalf of a program via `invoke_signed`, but if seeds are weak or the PDA is not domain-separated, an attacker may predict or create it. Evaluate:
 - Whether the PDA seeds include a unique, attacker-unpredictable value (e.g., random nonce, counter).
 - If the PDA is used as an authority without `has_one` or `constraint` checks.
 - Whether `find_program_address` with weak seeds allows squatting or collision.
 "#.to_string()
         }
-        "ownership-check" => {
+        VulnerabilityCategory::OwnershipCheck => {
             r#"Every account accessed by a Solana program must be owned by the expected program (or system program for raw accounts). Missing ownership checks allow attackers to pass fake accounts with fabricated data. Check:
 - Whether `Account<'_, T>` is used (Anchor auto-checks owner) vs `AccountInfo` (manual check required).
 - If the owner constraint is missing in Anchor `#[account(...)]` attributes.
 - Whether the program trusts account data without verifying `.owner == expected_program`.
 "#.to_string()
         }
-        "fuzzing-crash" => {
+        VulnerabilityCategory::FuzzingCrash => {
             r#"A fuzzing crash indicates the program panicked, aborted, or hit an unhandled error path during property-based testing. This is often a sign of:
 - Arithmetic overflow/underflow in release mode (wraps) or debug mode (panics).
 - Out-of-bounds access on account data.
@@ -464,7 +464,7 @@ pub fn category_specific_context(category: &str) -> String {
 Determine whether the crash root cause is exploitable in production (e.g., via a crafted transaction).
 "#.to_string()
         }
-        "invariant-violation" => {
+        VulnerabilityCategory::InvariantViolation => {
             r#"An invariant violation means the program entered a state that should be impossible under correct logic (e.g., negative balance, invalid authority). This is often more severe than a crash because:
 - It may leave the program in an exploitable state (e.g., drained vault).
 - It can bypass subsequent checks that assume the invariant holds.

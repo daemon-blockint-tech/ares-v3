@@ -82,7 +82,7 @@ impl<'a> App<'a> {
         self.current_response.clear();
     }
 
-    pub fn new(config: AresConfig) -> Self {
+    pub fn new(config: AresConfig) -> anyhow::Result<Self> {
         let mut textarea = TextArea::default();
         textarea.set_block(
             ratatui::widgets::Block::default()
@@ -92,7 +92,7 @@ impl<'a> App<'a> {
         );
         textarea.set_cursor_line_style(ratatui::style::Style::default());
 
-        let orchestrator = Arc::new(AgentOrchestrator::new(&config).unwrap());
+        let orchestrator = Arc::new(AgentOrchestrator::new(&config)?);
         let (req_tx, mut req_rx) = mpsc::channel::<String>(32);
         let (res_tx, res_rx) = mpsc::channel::<AgentEvent>(100);
 
@@ -104,7 +104,7 @@ impl<'a> App<'a> {
             }
         });
 
-        Self {
+        Ok(Self {
             config,
             textarea,
             messages: vec![
@@ -127,7 +127,7 @@ impl<'a> App<'a> {
             total_lines: 0,
             current_context_title: "No file selected".to_string(),
             current_context_content: "// The context viewer displays files read by the agent.".to_string(),
-        }
+        })
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {

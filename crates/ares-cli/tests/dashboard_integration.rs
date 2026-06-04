@@ -14,7 +14,7 @@ async fn test_dashboard_generates_html() {
     let _ = tokio::fs::remove_file(&dashboard_output).await;
 
     // First run benchmark to produce real JSON
-    ares_cli::commands::benchmark::execute(
+    ares_v3::commands::benchmark::execute(
         &dataset_parent,
         None,
         true,
@@ -29,7 +29,7 @@ async fn test_dashboard_generates_html() {
     );
 
     // Now generate dashboard
-    ares_cli::commands::dashboard::execute(&benchmark_output, &dashboard_output, ares_cli::ReportFormat::Html)
+    ares_v3::commands::dashboard::execute(&benchmark_output, &dashboard_output, ares_v3::ReportFormat::Html)
         .await
         .expect("Dashboard generation should succeed");
 

@@ -4,7 +4,7 @@ use ares_core::AresError;
 /// without panic and returns an appropriate result for the current environment.
 #[tokio::test]
 async fn test_doctor_runs_dependency_detection() {
-    let result = ares_cli::commands::doctor::execute().await;
+    let result = ares_v3::commands::doctor::execute().await;
 
     match result {
         Ok(()) => {

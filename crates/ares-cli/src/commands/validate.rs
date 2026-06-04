@@ -21,14 +21,15 @@ pub async fn execute(
     }
 
     // Determine project root (nearest directory with Cargo.toml)
-    let project_root = find_project_root(poc_path);
-    if project_root.is_none() {
-        error!("Could not locate project root (Cargo.toml) for {:?}", poc_path);
-        return Err(ares_core::AresError::Execution(
-            "PoC must reside inside a Rust project with Cargo.toml".to_string()
-        ));
-    }
-    let project_root = project_root.unwrap();
+    let project_root = match find_project_root(poc_path) {
+        Some(root) => root,
+        None => {
+            error!("Could not locate project root (Cargo.toml) for {:?}", poc_path);
+            return Err(ares_core::AresError::Execution(
+                "PoC must reside inside a Rust project with Cargo.toml".to_string()
+            ));
+        }
+    };
     info!("Resolved project root: {:?}", project_root);
 
     // Phase 8: Mainnet fork validator orchestration

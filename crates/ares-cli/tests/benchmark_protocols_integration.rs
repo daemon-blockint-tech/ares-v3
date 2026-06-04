@@ -12,7 +12,7 @@ async fn test_benchmark_ground_truth_real_protocols() {
     // Clean up from prior runs
     let _ = tokio::fs::remove_file(&output).await;
 
-    let result = ares_cli::commands::benchmark::execute(
+    let result = ares_v3::commands::benchmark::execute(
         &dataset,
         None,              // no protocol filter — test all including stubs
         true,              // compare baseline

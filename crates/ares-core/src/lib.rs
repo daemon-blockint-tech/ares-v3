@@ -45,6 +45,111 @@ pub enum AresError {
     Serialization(#[from] serde_json::Error),
 }
 
+/// Vulnerability category for a finding.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VulnerabilityCategory {
+    TypeCosplay,
+    OwnershipCheck,
+    SignerAuthorization,
+    ArbitraryCpi,
+    InitializationFrontrunning,
+    ReentrancyRisk,
+    DuplicateMutableAccounts,
+    ArithmeticOverflow,
+    CloseAccount,
+    AccountReloading,
+    ReInitialization,
+    RevivalAttack,
+    AccountDataMatching,
+    PdaPrivileges,
+    FuzzingCrash,
+    InvariantViolation,
+    MissingSigner,
+    MissingRevalidation,
+    UncheckedCast,
+    Generic,
+}
+
+impl VulnerabilityCategory {
+    /// Returns all known categories.
+    pub fn all() -> &'static [VulnerabilityCategory] {
+        &[
+            Self::TypeCosplay,
+            Self::OwnershipCheck,
+            Self::SignerAuthorization,
+            Self::ArbitraryCpi,
+            Self::InitializationFrontrunning,
+            Self::ReentrancyRisk,
+            Self::DuplicateMutableAccounts,
+            Self::ArithmeticOverflow,
+            Self::CloseAccount,
+            Self::AccountReloading,
+            Self::ReInitialization,
+            Self::RevivalAttack,
+            Self::AccountDataMatching,
+            Self::PdaPrivileges,
+            Self::FuzzingCrash,
+            Self::InvariantViolation,
+            Self::MissingSigner,
+            Self::MissingRevalidation,
+            Self::UncheckedCast,
+            Self::Generic,
+        ]
+    }
+
+    /// Parse a category from a string, returning `None` if unknown.
+    pub fn from_str_checked(s: &str) -> Option<Self> {
+        match s {
+            "type-cosplay" => Some(Self::TypeCosplay),
+            "ownership-check" => Some(Self::OwnershipCheck),
+            "signer-authorization" | "missing-signer" => Some(Self::SignerAuthorization),
+            "arbitrary-cpi" => Some(Self::ArbitraryCpi),
+            "initialization-frontrunning" => Some(Self::InitializationFrontrunning),
+            "reentrancy-risk" | "reentrancy" => Some(Self::ReentrancyRisk),
+            "duplicate-mutable-accounts" => Some(Self::DuplicateMutableAccounts),
+            "arithmetic-overflow" => Some(Self::ArithmeticOverflow),
+            "close-account" => Some(Self::CloseAccount),
+            "account-reloading" | "revival-attack" | "re-initialization" => Some(Self::AccountReloading),
+            "account-data-matching" => Some(Self::AccountDataMatching),
+            "pda-privileges" => Some(Self::PdaPrivileges),
+            "fuzzing-crash" | "fuzzing" => Some(Self::FuzzingCrash),
+            "invariant-violation" | "invariant" => Some(Self::InvariantViolation),
+            "missing-revalidation" => Some(Self::MissingRevalidation),
+            "unchecked-cast" => Some(Self::UncheckedCast),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for VulnerabilityCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::TypeCosplay => "type-cosplay",
+            Self::OwnershipCheck => "ownership-check",
+            Self::SignerAuthorization => "signer-authorization",
+            Self::ArbitraryCpi => "arbitrary-cpi",
+            Self::InitializationFrontrunning => "initialization-frontrunning",
+            Self::ReentrancyRisk => "reentrancy-risk",
+            Self::DuplicateMutableAccounts => "duplicate-mutable-accounts",
+            Self::ArithmeticOverflow => "arithmetic-overflow",
+            Self::CloseAccount => "close-account",
+            Self::AccountReloading => "account-reloading",
+            Self::ReInitialization => "re-initialization",
+            Self::RevivalAttack => "revival-attack",
+            Self::AccountDataMatching => "account-data-matching",
+            Self::PdaPrivileges => "pda-privileges",
+            Self::FuzzingCrash => "fuzzing-crash",
+            Self::InvariantViolation => "invariant-violation",
+            Self::MissingSigner => "missing-signer",
+            Self::MissingRevalidation => "missing-revalidation",
+            Self::UncheckedCast => "unchecked-cast",
+            Self::Generic => "generic",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 /// Severity level of a vulnerability finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Severity {
@@ -74,7 +179,7 @@ pub struct Finding {
     pub title: String,
     pub description: String,
     pub severity: Severity,
-    pub category: String,
+    pub category: VulnerabilityCategory,
     pub location: CodeLocation,
     pub proof_of_concept: Option<PathBuf>,
     pub recommendation: String,

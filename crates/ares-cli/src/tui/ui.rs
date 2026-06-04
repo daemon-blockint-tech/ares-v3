@@ -310,12 +310,10 @@ fn draw_right_pane(f: &mut Frame, app: &mut App, area: Rect) {
 
     // 3. Status Bar
     let key = &app.orchestrator.api_key;
-    let masked_key = if key.len() > 8 {
-        format!("{}...{}", &key[0..4], &key[key.len() - 4..])
-    } else if key.is_empty() {
+    let masked_key = if key.is_empty() {
         "UNSET".to_string()
     } else {
-        "***".to_string()
+        "****".to_string()
     };
     
     let model = if app.orchestrator.model.is_empty() { "default" } else { &app.orchestrator.model };

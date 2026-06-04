@@ -8,7 +8,7 @@ async fn test_benchmark_detailed_diagnostic() {
     let output = PathBuf::from("../../ares-benchmark-detailed.json");
     let _ = tokio::fs::remove_file(&output).await;
 
-    let result = ares_cli::commands::benchmark::execute(
+    let result = ares_v3::commands::benchmark::execute(
         &dataset, None, true, &output,
     ).await;
     assert!(result.is_ok());

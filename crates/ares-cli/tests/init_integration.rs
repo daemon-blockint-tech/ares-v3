@@ -5,7 +5,7 @@ async fn test_init_creates_config_files_and_directories() {
     let path = temp_dir.path();
 
     // Run init command
-    ares_cli::commands::init::execute(path)
+    ares_v3::commands::init::execute(path)
         .await
         .expect("init should succeed in a fresh temp directory");
 
@@ -43,7 +43,7 @@ async fn test_init_is_idempotent() {
         .unwrap();
 
     // Run init
-    ares_cli::commands::init::execute(path)
+    ares_v3::commands::init::execute(path)
         .await
         .expect("init should succeed even if config exists");
 

@@ -1,4 +1,4 @@
-use ares_core::{Finding, Severity};
+use ares_core::{Finding, Severity, VulnerabilityCategory};
 use ares_mapper::{AccountEffect, InstructionNode, ProgramGraph};
 use tracing::{info, warn};
 
@@ -80,13 +80,15 @@ impl<'a> SemanticValidator<'a> {
 
     /// Evaluate a single finding against the graph.
     fn check(&self, finding: &Finding) -> ValidationResult {
-        match finding.category.as_str() {
-            "signer-authorization" | "missing-signer" => self.check_signer(finding),
-            "ownership-check" | "missing-owner" => self.check_owner(finding),
-            "arbitrary-cpi" => self.check_cpi(finding),
-            "initialization-frontrunning" | "re-initialization" => self.check_init(finding),
-            "fuzzing-crash" | "invariant-violation" => self.check_fuzz(finding),
-            "missing-revalidation" => self.check_revalidation(finding),
+        match &finding.category {
+            VulnerabilityCategory::SignerAuthorization => self.check_signer(finding),
+            VulnerabilityCategory::OwnershipCheck => self.check_owner(finding),
+            VulnerabilityCategory::ArbitraryCpi => self.check_cpi(finding),
+            VulnerabilityCategory::InitializationFrontrunning
+            | VulnerabilityCategory::ReInitialization => self.check_init(finding),
+            VulnerabilityCategory::FuzzingCrash
+            | VulnerabilityCategory::InvariantViolation => self.check_fuzz(finding),
+            VulnerabilityCategory::MissingRevalidation => self.check_revalidation(finding),
             _ => ValidationResult {
                 finding: finding.clone(),
                 suppressed: false,
@@ -102,7 +104,7 @@ impl<'a> SemanticValidator<'a> {
             .location
             .function
             .as_deref()
-            .unwrap_or(&finding.category);
+            .unwrap_or("unknown");
 
         if let Some(instr) = self.find_instruction(instr_name) {
             let has_effects = !instr.effects.is_empty();
@@ -168,7 +170,7 @@ impl<'a> SemanticValidator<'a> {
             .location
             .function
             .as_deref()
-            .unwrap_or(&finding.category);
+            .unwrap_or("unknown");
 
         if let Some(instr) = self.find_instruction(instr_name) {
             let passes_writable = instr

@@ -1,4 +1,4 @@
-use ares_core::Finding;
+use ares_core::{Finding, VulnerabilityCategory};
 use chrono::Utc;
 
 /// Generates compilable proof-of-concept harnesses using `solana-program-test`.
@@ -9,25 +9,27 @@ pub struct PocGenerator;
 
 impl PocGenerator {
     pub fn generate(finding: &Finding, program_name: &str) -> String {
-        let category = finding.category.as_str();
         let id = &finding.id;
 
-        match category {
-            "signer-authorization" | "missing-signer" => Self::generate_signer_poc(id, program_name),
-            "ownership-check" | "missing-owner" => Self::generate_owner_poc(id, program_name),
-            "arbitrary-cpi" => Self::generate_cpi_poc(id, program_name),
-            "initialization-frontrunning" | "re-initialization" => {
+        match &finding.category {
+            VulnerabilityCategory::SignerAuthorization => Self::generate_signer_poc(id, program_name),
+            VulnerabilityCategory::OwnershipCheck => Self::generate_owner_poc(id, program_name),
+            VulnerabilityCategory::ArbitraryCpi => Self::generate_cpi_poc(id, program_name),
+            VulnerabilityCategory::InitializationFrontrunning
+            | VulnerabilityCategory::ReInitialization => {
                 Self::generate_init_poc(id, program_name)
             }
-            "revival-attack" | "account-reloading" => Self::generate_revival_poc(id, program_name),
-            "fuzzing-crash" | "invariant-violation" => {
+            VulnerabilityCategory::AccountReloading
+            | VulnerabilityCategory::RevivalAttack => Self::generate_revival_poc(id, program_name),
+            VulnerabilityCategory::FuzzingCrash
+            | VulnerabilityCategory::InvariantViolation => {
                 Self::generate_invariant_poc(id, program_name, finding)
             }
             _ => Self::generate_generic_poc(id, program_name),
         }
     }
 
-    fn header(id: &str, program_name: &str, category: &str) -> String {
+    fn header(id: &str, program_name: &str, category: &VulnerabilityCategory) -> String {
         format!(
             "// ARES V3 Auto-Generated Proof-of-Concept Test\n// Target: {}\n// Finding ID: {}\n// Category: {}\n// Generated: {}\n// NOTE: This is a compilable harness. Replace placeholder instruction data\n// with actual serialized instruction data from the target program's IDL or source.\n",
             program_name,
@@ -83,7 +85,7 @@ async fn {}() {{
     }
 
     fn generate_signer_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "signer-authorization");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::SignerAuthorization);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_missing_signer", sanitize_id(id)),
@@ -113,7 +115,7 @@ async fn {}() {{
     }
 
     fn generate_owner_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "ownership-check");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::OwnershipCheck);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_wrong_owner", sanitize_id(id)),
@@ -152,7 +154,7 @@ async fn {}() {{
     }
 
     fn generate_cpi_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "arbitrary-cpi");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::ArbitraryCpi);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_arbitrary_cpi", sanitize_id(id)),
@@ -192,7 +194,7 @@ async fn {}() {{
     }
 
     fn generate_init_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "initialization-frontrunning");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::InitializationFrontrunning);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_double_init", sanitize_id(id)),
@@ -231,7 +233,7 @@ async fn {}() {{
     }
 
     fn generate_revival_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "revival-attack");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::RevivalAttack);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_revival", sanitize_id(id)),
@@ -324,7 +326,7 @@ async fn {}() {{
     }
 
     fn generate_generic_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, "generic");
+        let mut s = Self::header(id, program_name, &VulnerabilityCategory::Generic);
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_generic", sanitize_id(id)),

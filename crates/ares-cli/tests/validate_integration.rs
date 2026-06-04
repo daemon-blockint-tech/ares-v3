@@ -2,7 +2,7 @@
 /// and gracefully handles missing `solana-test-validator` binary.
 #[tokio::test]
 async fn test_fork_validator_graceful_missing_binary() {
-    let mut validator = ares_cli::fork_validator::ForkValidator::builder(
+    let mut validator = ares_v3::fork_validator::ForkValidator::builder(
         "https://api.mainnet-beta.solana.com",
     )
     .slot(Some(30_000_000))
@@ -41,7 +41,7 @@ async fn test_validate_missing_poc_path() {
     let bad_path = std::path::PathBuf::from("/nonexistent/poc_test.rs");
     let config = ares_core::AresConfig::default();
 
-    let result = ares_cli::commands::validate::execute(&bad_path, false, None, &config, None).await;
+    let result = ares_v3::commands::validate::execute(&bad_path, false, None, &config, None).await;
 
     assert!(
         result.is_err(),

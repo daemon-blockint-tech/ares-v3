@@ -16,7 +16,7 @@ async fn test_benchmark_against_solana_attack_vectors() {
     // Clean up from prior runs
     let _ = tokio::fs::remove_file(&output).await;
 
-    let result = ares_cli::commands::benchmark::execute(
+    let result = ares_v3::commands::benchmark::execute(
         &dataset_parent,
         None,              // no protocol filter
         true,              // compare baseline

@@ -1101,8 +1101,8 @@ fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns {
                     .filter(|(_, l)| l.to_lowercase().contains(&format!("{} =", field)))
                     .collect();
                 if writes.len() >= 2 {
-                    let first_idx = writes.first().unwrap().0;
-                    let last_idx = writes.last().unwrap().0;
+                    let first_idx = writes.first().map_or(0, |(i, _)| *i);
+                    let last_idx = writes.last().map_or(0, |(i, _)| *i);
                     let middle = &lines[first_idx..last_idx].join("\n");
                     if middle.contains("invoke(") || middle.contains("invoke_signed(") {
                         patterns.has_state_set_then_cpi_then_state_set = true;

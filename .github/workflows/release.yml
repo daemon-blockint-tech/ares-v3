@@ -117,8 +117,8 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           # Publish core libraries first, then CLI
-          cargo publish -p ares-core || true
-          cargo publish -p ares-trident || true
-          cargo publish -p ares-policy || true
-          cargo publish -p ares-mapper || true
-          cargo publish -p ares-v3 || true
+          cargo publish -p ares-core
+          cargo publish -p ares-trident
+          cargo publish -p ares-policy
+          cargo publish -p ares-mapper
+          cargo publish -p ares-v3

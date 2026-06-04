@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use ares_core::{AresConfig, AresResult, AuditReport, Finding, ProgramTarget, ReportMetadata, ReportSummary, Severity};
+use ares_core::{AresConfig, AresResult, AuditReport, Finding, ProgramTarget, ReportMetadata, ReportSummary, Severity, VulnerabilityCategory};
 use ares_mapper::MapperAgent;
 use ares_trident::{TridentTool, check_trident_installation};
 use ares_policy::PolicyEngine;
@@ -87,7 +87,9 @@ pub async fn execute(
     info!("Cross-instruction analysis: {} findings", cross_findings.len());
 
     for cf in cross_findings {
-        let severity = if cf.category == "reentrancy-risk" {
+        let category = VulnerabilityCategory::from_str_checked(&cf.category)
+            .unwrap_or(VulnerabilityCategory::InvariantViolation);
+        let severity = if matches!(category, VulnerabilityCategory::ReentrancyRisk) {
             ares_core::Severity::Critical
         } else {
             ares_core::Severity::High
@@ -97,7 +99,7 @@ pub async fn execute(
             title: format!("{}: {}", cf.category, cf.affected_account),
             description: cf.description,
             severity,
-            category: cf.category,
+            category,
             location: ares_core::CodeLocation {
                 file: program_target.source_path.clone(),
                 function: Some(cf.source_instruction),
@@ -138,7 +140,7 @@ pub async fn execute(
                         title: format!("Crash in fuzz target '{}'", target_name),
                         description: crash.clone(),
                         severity: Severity::High,
-                        category: "fuzzing-crash".to_string(),
+                        category: VulnerabilityCategory::FuzzingCrash,
                         location: Default::default(),
                         proof_of_concept: None,
                         recommendation: "Investigate crash reproduction and root cause analysis.".to_string(),
@@ -152,7 +154,7 @@ pub async fn execute(
                         title: format!("Invariant violation in target '{}'", target_name),
                         description: violation.clone(),
                         severity: Severity::Critical,
-                        category: "invariant-violation".to_string(),
+                        category: VulnerabilityCategory::InvariantViolation,
                         location: Default::default(),
                         proof_of_concept: None,
                         recommendation: "Review state transition invariants and access controls.".to_string(),

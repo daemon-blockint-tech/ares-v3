@@ -177,13 +177,8 @@ pub async fn status(config: &AresConfig) -> Result<()> {
     println!("Model: {}", config.llm_model);
     
     match &config.llm_api_key {
-        Some(key) => {
-            let masked = if key.len() > 8 {
-                format!("{}...{}", &key[0..4], &key[key.len()-4..])
-            } else {
-                "***".to_string()
-            };
-            println!("API Key: Set ({})", masked);
+        Some(_) => {
+            println!("API Key: Set (****)");
         }
         None => {
             let env_key = std::env::var("ARES_LLM_API_KEY").unwrap_or_default();

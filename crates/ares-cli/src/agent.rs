@@ -154,9 +154,27 @@ impl AgentOrchestrator {
                 messages.push(assistant_message);
 
                 for tc in tool_calls {
-                    let id = tc["id"].as_str().unwrap().to_string();
-                    let func_name = tc["function"]["name"].as_str().unwrap().to_string();
-                    let func_args = tc["function"]["arguments"].as_str().unwrap();
+                    let id = match tc["id"].as_str() {
+                        Some(s) => s.to_string(),
+                        None => {
+                            tx.send(AgentEvent::Error("LLM returned tool call without id".to_string())).await?;
+                            continue;
+                        }
+                    };
+                    let func_name = match tc["function"]["name"].as_str() {
+                        Some(s) => s.to_string(),
+                        None => {
+                            tx.send(AgentEvent::Error(format!("Tool call {} has no function name", id))).await?;
+                            continue;
+                        }
+                    };
+                    let func_args = match tc["function"]["arguments"].as_str() {
+                        Some(s) => s,
+                        None => {
+                            tx.send(AgentEvent::Error(format!("Tool call {} has no arguments", id))).await?;
+                            continue;
+                        }
+                    };
                     let args: Value = serde_json::from_str(func_args).unwrap_or(json!({}));
 
                     let is_mutating = func_name == "ares_fuzz";
