@@ -8,9 +8,20 @@ use tokio::sync::{mpsc, oneshot};
 
 pub enum AgentEvent {
     Token(String),
-    ToolCall { name: String, args: Value },
-    RequiresApproval { name: String, args: Value, approval_tx: oneshot::Sender<bool> },
-    ToolResult { name: String, args: Value, result: String },
+    ToolCall {
+        name: String,
+        args: Value,
+    },
+    RequiresApproval {
+        name: String,
+        args: Value,
+        approval_tx: oneshot::Sender<bool>,
+    },
+    ToolResult {
+        name: String,
+        args: Value,
+        result: String,
+    },
     Error(String),
     Done,
 }
@@ -51,9 +62,13 @@ pub struct AgentOrchestrator {
 
 impl AgentOrchestrator {
     pub fn new(config: &AresConfig) -> Result<Self> {
-        let api_key = config.llm_api_key.clone().unwrap_or_else(|| std::env::var("ARES_LLM_API_KEY").unwrap_or_default());
+        let api_key = config
+            .llm_api_key
+            .clone()
+            .unwrap_or_else(|| std::env::var("ARES_LLM_API_KEY").unwrap_or_default());
         let mut endpoint = config.llm_base_url.clone().unwrap_or_else(|| {
-            std::env::var("ARES_LLM_ENDPOINT").unwrap_or_else(|_| "https://api.openai.com/v1".to_string())
+            std::env::var("ARES_LLM_ENDPOINT")
+                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string())
         });
 
         let trimmed = endpoint.trim_end_matches('/');
@@ -76,7 +91,10 @@ impl AgentOrchestrator {
 
     pub async fn send_message(&self, message: String, tx: mpsc::Sender<AgentEvent>) -> Result<()> {
         if self.api_key.is_empty() {
-            tx.send(AgentEvent::Error("ARES_LLM_API_KEY is not set. Please export it to enable the agent.".to_string())).await?;
+            tx.send(AgentEvent::Error(
+                "ARES_LLM_API_KEY is not set. Please export it to enable the agent.".to_string(),
+            ))
+            .await?;
             tx.send(AgentEvent::Done).await?;
             return Ok(());
         }
@@ -101,7 +119,11 @@ impl AgentOrchestrator {
         self.run_loop(&mut messages, tx).await
     }
 
-    async fn run_loop(&self, messages: &mut Vec<ChatMessage>, tx: mpsc::Sender<AgentEvent>) -> Result<()> {
+    async fn run_loop(
+        &self,
+        messages: &mut Vec<ChatMessage>,
+        tx: mpsc::Sender<AgentEvent>,
+    ) -> Result<()> {
         loop {
             let tools = self.get_tools();
             let body = json!({
@@ -112,7 +134,9 @@ impl AgentOrchestrator {
                 "temperature": 0.0
             });
 
-            let response = self.client.post(&self.endpoint)
+            let response = self
+                .client
+                .post(&self.endpoint)
                 .header("Authorization", format!("Bearer {}", self.api_key))
                 .header("Content-Type", "application/json")
                 .json(&body)
@@ -121,7 +145,8 @@ impl AgentOrchestrator {
 
             if !response.status().is_success() {
                 let err_text = response.text().await?;
-                tx.send(AgentEvent::Error(format!("LLM API Error: {}", err_text))).await?;
+                tx.send(AgentEvent::Error(format!("LLM API Error: {}", err_text)))
+                    .await?;
                 break;
             }
 
@@ -153,21 +178,32 @@ impl AgentOrchestrator {
                     let id = match tc["id"].as_str() {
                         Some(s) => s.to_string(),
                         None => {
-                            tx.send(AgentEvent::Error("LLM returned tool call without id".to_string())).await?;
+                            tx.send(AgentEvent::Error(
+                                "LLM returned tool call without id".to_string(),
+                            ))
+                            .await?;
                             continue;
                         }
                     };
                     let func_name = match tc["function"]["name"].as_str() {
                         Some(s) => s.to_string(),
                         None => {
-                            tx.send(AgentEvent::Error(format!("Tool call {} has no function name", id))).await?;
+                            tx.send(AgentEvent::Error(format!(
+                                "Tool call {} has no function name",
+                                id
+                            )))
+                            .await?;
                             continue;
                         }
                     };
                     let func_args = match tc["function"]["arguments"].as_str() {
                         Some(s) => s,
                         None => {
-                            tx.send(AgentEvent::Error(format!("Tool call {} has no arguments", id))).await?;
+                            tx.send(AgentEvent::Error(format!(
+                                "Tool call {} has no arguments",
+                                id
+                            )))
+                            .await?;
                             continue;
                         }
                     };
@@ -181,12 +217,18 @@ impl AgentOrchestrator {
                             name: func_name.clone(),
                             args: args.clone(),
                             approval_tx,
-                        }).await?;
+                        })
+                        .await?;
 
                         let approved = approval_rx.await.unwrap_or(false);
                         if !approved {
                             let result = "Execution denied by IronCurtain policy.".to_string();
-                            tx.send(AgentEvent::ToolResult { name: func_name.clone(), args: args.clone(), result: result.clone() }).await?;
+                            tx.send(AgentEvent::ToolResult {
+                                name: func_name.clone(),
+                                args: args.clone(),
+                                result: result.clone(),
+                            })
+                            .await?;
                             messages.push(ChatMessage {
                                 role: "tool".to_string(),
                                 content: Some(result),
@@ -198,11 +240,20 @@ impl AgentOrchestrator {
                         }
                     }
 
-                    tx.send(AgentEvent::ToolCall { name: func_name.clone(), args: args.clone() }).await?;
+                    tx.send(AgentEvent::ToolCall {
+                        name: func_name.clone(),
+                        args: args.clone(),
+                    })
+                    .await?;
 
                     let result = self.execute_tool(&func_name, &args).await;
 
-                    tx.send(AgentEvent::ToolResult { name: func_name.clone(), args: args.clone(), result: result.clone() }).await?;
+                    tx.send(AgentEvent::ToolResult {
+                        name: func_name.clone(),
+                        args: args.clone(),
+                        result: result.clone(),
+                    })
+                    .await?;
 
                     messages.push(ChatMessage {
                         role: "tool".to_string(),
@@ -234,7 +285,8 @@ impl AgentOrchestrator {
         Always use 'ares_scan' to run a static deterministic analysis on a workspace first. \
         Be concise, professional, and act as an expert auditor. \
         IMPORTANT: Before executing any tool or providing an answer, you MUST write down your \
-        step-by-step reasoning inside <thinking>...</thinking> XML tags.".to_string()
+        step-by-step reasoning inside <thinking>...</thinking> XML tags."
+            .to_string()
     }
 
     fn get_tools(&self) -> Value {
@@ -332,7 +384,10 @@ impl AgentOrchestrator {
                 let file_path = args["file_path"].as_str().unwrap_or("");
                 let path = PathBuf::from(file_path);
                 if path.is_dir() {
-                    return format!("Error: '{}' is a directory. Use list_directory to see its contents.", file_path);
+                    return format!(
+                        "Error: '{}' is a directory. Use list_directory to see its contents.",
+                        file_path
+                    );
                 }
                 match tokio::fs::read_to_string(file_path).await {
                     Ok(content) => content,
@@ -353,7 +408,11 @@ impl AgentOrchestrator {
                         let mut files = Vec::new();
                         while let Ok(Some(entry)) = entries.next_entry().await {
                             let file_type = if let Ok(ft) = entry.file_type().await {
-                                if ft.is_dir() { "[DIR] " } else { "[FILE]" }
+                                if ft.is_dir() {
+                                    "[DIR] "
+                                } else {
+                                    "[FILE]"
+                                }
                             } else {
                                 "[UKWN]"
                             };

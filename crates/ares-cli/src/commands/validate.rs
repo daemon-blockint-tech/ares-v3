@@ -1,7 +1,7 @@
-use std::path::Path;
-use ares_core::AresResult;
 use ares_core::AresConfig;
-use tracing::{info, error};
+use ares_core::AresResult;
+use std::path::Path;
+use tracing::{error, info};
 
 /// Validate a proof-of-concept in a sandboxed SVM environment.
 /// Phase 2: executes real `cargo test` / Trident runs instead of stubs.
@@ -14,19 +14,28 @@ pub async fn execute(
     rpc_url_override: Option<String>,
 ) -> AresResult<()> {
     info!("ARES PoC Validation");
-    info!("PoC: {:?} | Fork Mainnet: {} | Slot: {:?}", poc_path, fork_mainnet, fork_slot);
+    info!(
+        "PoC: {:?} | Fork Mainnet: {} | Slot: {:?}",
+        poc_path, fork_mainnet, fork_slot
+    );
 
     if !poc_path.exists() {
-        return Err(ares_core::AresError::NotFound(format!("PoC path not found: {:?}", poc_path)));
+        return Err(ares_core::AresError::NotFound(format!(
+            "PoC path not found: {:?}",
+            poc_path
+        )));
     }
 
     // Determine project root (nearest directory with Cargo.toml)
     let project_root = match find_project_root(poc_path) {
         Some(root) => root,
         None => {
-            error!("Could not locate project root (Cargo.toml) for {:?}", poc_path);
+            error!(
+                "Could not locate project root (Cargo.toml) for {:?}",
+                poc_path
+            );
             return Err(ares_core::AresError::Execution(
-                "PoC must reside inside a Rust project with Cargo.toml".to_string()
+                "PoC must reside inside a Rust project with Cargo.toml".to_string(),
             ));
         }
     };
@@ -41,8 +50,10 @@ pub async fn execute(
         let slot = fork_slot.or(config.mainnet_fork_slot);
         let clone_accounts = config.mainnet_clone_accounts.clone();
 
-        info!("[Phase 8] Starting mainnet fork validator | RPC={} | Slot={:?} | Clones={:?}",
-            rpc_url, slot, clone_accounts);
+        info!(
+            "[Phase 8] Starting mainnet fork validator | RPC={} | Slot={:?} | Clones={:?}",
+            rpc_url, slot, clone_accounts
+        );
 
         let mut validator = crate::fork_validator::ForkValidator::builder(rpc_url)
             .slot(slot)
@@ -56,7 +67,10 @@ pub async fn execute(
                 Some(url)
             }
             Err(e) => {
-                error!("Failed to start fork validator: {}. Continuing without fork.", e);
+                error!(
+                    "Failed to start fork validator: {}. Continuing without fork.",
+                    e
+                );
                 None
             }
         }
@@ -77,7 +91,7 @@ pub async fn execute(
 
             let mut cmd = tokio::process::Command::new("cargo");
             cmd.current_dir(&project_root)
-               .args(["test", test_filter, "--", "--nocapture"]);
+                .args(["test", test_filter, "--", "--nocapture"]);
             if let Some(ref rpc) = local_rpc {
                 cmd.env("ARES_FORK_RPC_URL", rpc);
             }
@@ -89,7 +103,10 @@ pub async fn execute(
                     let stderr = String::from_utf8_lossy(&o.stderr);
                     info!("{}", stdout.lines().take(30).collect::<Vec<_>>().join("\n"));
                     if !stderr.is_empty() {
-                        info!("stderr: {}", stderr.lines().take(10).collect::<Vec<_>>().join("\n"));
+                        info!(
+                            "stderr: {}",
+                            stderr.lines().take(10).collect::<Vec<_>>().join("\n")
+                        );
                     }
                     if o.status.success() {
                         info!("PoC validation PASSED — program may be VULNERABLE (transaction succeeded).");
@@ -98,14 +115,17 @@ pub async fn execute(
                     }
                     Ok(())
                 }
-                Err(e) => Err(ares_core::AresError::Execution(format!("cargo test failed: {}", e))),
+                Err(e) => Err(ares_core::AresError::Execution(format!(
+                    "cargo test failed: {}",
+                    e
+                ))),
             }
         }
         Some("ts") => {
             info!("Detected TypeScript test file. Running via anchor test...");
             let mut cmd = tokio::process::Command::new("anchor");
             cmd.current_dir(&project_root)
-               .args(["test", "--skip-build"]);
+                .args(["test", "--skip-build"]);
             if let Some(ref rpc) = local_rpc {
                 cmd.env("ANCHOR_PROVIDER_URL", rpc);
             }
@@ -124,15 +144,17 @@ pub async fn execute(
                 }
                 Err(e) => {
                     error!("Failed to run anchor test: {}", e);
-                    Err(ares_core::AresError::Execution(format!("anchor test failed: {}", e)))
+                    Err(ares_core::AresError::Execution(format!(
+                        "anchor test failed: {}",
+                        e
+                    )))
                 }
             }
         }
         Some("sh") => {
             info!("Detected shell script. Executing in local environment...");
             let mut cmd = tokio::process::Command::new("bash");
-            cmd.current_dir(&project_root)
-               .arg(poc_path);
+            cmd.current_dir(&project_root).arg(poc_path);
             if let Some(ref rpc) = local_rpc {
                 cmd.env("ARES_FORK_RPC_URL", rpc);
             }
@@ -142,19 +164,27 @@ pub async fn execute(
                     if o.status.success() {
                         info!("Shell script executed successfully.");
                     } else {
-                        error!("Shell script failed: {}", String::from_utf8_lossy(&o.stderr));
+                        error!(
+                            "Shell script failed: {}",
+                            String::from_utf8_lossy(&o.stderr)
+                        );
                     }
                     Ok(())
                 }
                 Err(e) => {
                     error!("Failed to execute shell script: {}", e);
-                    Err(ares_core::AresError::Execution(format!("shell script failed: {}", e)))
+                    Err(ares_core::AresError::Execution(format!(
+                        "shell script failed: {}",
+                        e
+                    )))
                 }
             }
         }
         _ => {
             error!("Unknown PoC file type: {:?}", extension);
-            Err(ares_core::AresError::Execution("Unknown PoC type".to_string()))
+            Err(ares_core::AresError::Execution(
+                "Unknown PoC type".to_string(),
+            ))
         }
     };
 

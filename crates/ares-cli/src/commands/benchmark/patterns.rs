@@ -111,12 +111,16 @@ pub struct SourcePatterns {
 /// Returns true if a line is a single-line comment (/// or // or /* block).
 pub fn is_comment_line(line: &str) -> bool {
     let trimmed = line.trim_start();
-    trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("* ") || trimmed == "*/"
+    trimmed.starts_with("//")
+        || trimmed.starts_with("/*")
+        || trimmed.starts_with("* ")
+        || trimmed == "*/"
 }
 
 /// Extracts code-only content by removing comment lines.
 pub fn code_only(content: &str) -> String {
-    content.lines()
+    content
+        .lines()
         .filter(|l| !is_comment_line(l))
         .collect::<Vec<_>>()
         .join("\n")
@@ -128,7 +132,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
     let mut patterns = SourcePatterns::default();
     let mut seen_paths = std::collections::HashSet::new();
 
-    let paths: Vec<_> = graph.instructions.iter()
+    let paths: Vec<_> = graph
+        .instructions
+        .iter()
         .map(|i| &i.file_path)
         .chain(graph.accounts.iter().map(|a| &a.file_path))
         .chain(graph.all_source_files.iter())
@@ -152,7 +158,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             if line.contains("#[derive(Accounts") || line.contains("#[derive(Accounts<") {
                 in_accounts_struct = true;
             }
-            if in_accounts_struct && (line.trim().starts_with("pub ") || line.trim().starts_with("#[account(")) {
+            if in_accounts_struct
+                && (line.trim().starts_with("pub ") || line.trim().starts_with("#[account("))
+            {
                 if line.contains("AccountInfo<") || line.contains("UncheckedAccount") {
                     patterns.has_account_info_unchecked = true;
                 }
@@ -171,9 +179,15 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 let mut field_line: Option<&str> = None;
                 for l in lines.iter().skip(i + 1).take(6) {
                     let trimmed = l.trim();
-                    if trimmed.is_empty() { continue; }
-                    if trimmed.starts_with("#[") { continue; }
-                    if !trimmed.starts_with("pub ") { continue; }
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if trimmed.starts_with("#[") {
+                        continue;
+                    }
+                    if !trimmed.starts_with("pub ") {
+                        continue;
+                    }
                     field_line = Some(l);
                     break;
                 }
@@ -215,12 +229,24 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             || path_str.contains("\\bench\\")
             || path_str.contains("/benchmark/")
             || path_str.contains("\\benchmark\\");
-        if !is_test_or_util_file && code.contains("try_from_slice") && !code.contains("discriminator") {
+        if !is_test_or_util_file
+            && code.contains("try_from_slice")
+            && !code.contains("discriminator")
+        {
             if !code.contains("Account::try_from") && !code.contains("AccountLoad") {
-                let safe_prefixes = ["Pubkey::try_from_slice", "u128::try_from_slice", "u64::try_from_slice", "i128::try_from_slice", "i64::try_from_slice", "BigNum::try_from_slice"];
+                let safe_prefixes = [
+                    "Pubkey::try_from_slice",
+                    "u128::try_from_slice",
+                    "u64::try_from_slice",
+                    "i128::try_from_slice",
+                    "i64::try_from_slice",
+                    "BigNum::try_from_slice",
+                ];
                 let has_unsafe_try_from = lines.iter().any(|l| {
-                    l.contains("try_from_slice") && !safe_prefixes.iter().any(|p| l.contains(p))
-                        && !l.trim().starts_with("//") && !l.contains("Account::try_from")
+                    l.contains("try_from_slice")
+                        && !safe_prefixes.iter().any(|p| l.contains(p))
+                        && !l.trim().starts_with("//")
+                        && !l.contains("Account::try_from")
                 });
                 if has_unsafe_try_from {
                     patterns.has_try_from_slice = true;
@@ -235,13 +261,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // safe wrapping: checked/saturating arithmetic, try_into, or a custom function
         // call (the function performs the safety check internally).
         if (code.contains("u128") || code.contains("i128")) && code.contains("as u64") {
-            let downcast_lines: Vec<_> = lines.iter()
+            let downcast_lines: Vec<_> = lines
+                .iter()
                 .filter(|l| l.contains("as u64") || l.contains("as u32") || l.contains("as u16"))
                 .map(|l| l.trim())
                 .collect();
             let all_safe_downcast = !downcast_lines.is_empty()
                 && downcast_lines.iter().all(|l| {
-                    l.contains("checked_") || l.contains("saturating_") || l.contains("try_into()")
+                    l.contains("checked_")
+                        || l.contains("saturating_")
+                        || l.contains("try_into()")
                         || (l.contains("(") && l.contains(").unwrap()"))
                         || (l.contains("(") && l.contains(")?"))
                 });
@@ -260,12 +289,11 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         let has_anchor_lamport_drain = code.contains("sub_lamports(");
         let has_lamport_drain = has_raw_lamport_drain || has_anchor_lamport_drain;
         let has_close_constraint = code.contains("close=") || code.contains("close =");
-        let has_discriminator_zero = code.contains("fill(0)") || code.contains("try_borrow_mut_data");
+        let has_discriminator_zero =
+            code.contains("fill(0)") || code.contains("try_borrow_mut_data");
         if has_lamport_drain && !has_close_constraint && !has_discriminator_zero {
             patterns.has_manual_lamport_drain = true;
         }
-
-
 
         // ── init_if_needed with fixed / literal seeds (re-initializable) ──
         if code.contains("init_if_needed") {
@@ -275,9 +303,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     let seeds_part = if let Some(start) = line.find('[') {
                         if let Some(end) = line[start..].find(']') {
                             &line[start..start + end + 1]
-                        } else { "" }
-                    } else { "" };
-                    if seeds_part.contains("b\"") && !seeds_part.contains(".key()") && !seeds_part.contains("as_ref()") {
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+                    if seeds_part.contains("b\"")
+                        && !seeds_part.contains(".key()")
+                        && !seeds_part.contains("as_ref()")
+                    {
                         patterns.has_init_with_fixed_seeds = true;
                     }
                 }
@@ -292,9 +327,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     let seeds_part = if let Some(start) = line.find('[') {
                         if let Some(end) = line[start..].find(']') {
                             &line[start..start + end + 1]
-                        } else { "" }
-                    } else { "" };
-                    if seeds_part.contains("b\"") && !seeds_part.contains(".key()") && !seeds_part.contains("as_ref()") {
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+                    if seeds_part.contains("b\"")
+                        && !seeds_part.contains(".key()")
+                        && !seeds_part.contains("as_ref()")
+                    {
                         patterns.has_any_init_with_fixed_seeds = true;
                     }
                 }
@@ -303,7 +345,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
 
         // ── CpiContext::new with a user-controlled program variable ──
         if code.contains("CpiContext::new(") {
-            let cpi_lines: Vec<_> = lines.iter().filter(|l| l.contains("CpiContext::new(")).collect();
+            let cpi_lines: Vec<_> = lines
+                .iter()
+                .filter(|l| l.contains("CpiContext::new("))
+                .collect();
             for l in cpi_lines {
                 let l_lower = l.to_lowercase();
                 if l_lower.contains("cpi_program")
@@ -322,30 +367,57 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         }
 
         // ── Account state read -> CPI -> same state read again (stale data) ──
-        if code.contains("invoke(") || code.contains("invoke_signed(") || code.contains("CpiContext") {
+        if code.contains("invoke(")
+            || code.contains("invoke_signed(")
+            || code.contains("CpiContext")
+        {
             for (i, line) in lines.iter().enumerate() {
-                if line.contains("invoke(") || line.contains("invoke_signed(") || line.contains("CpiContext") {
+                if line.contains("invoke(")
+                    || line.contains("invoke_signed(")
+                    || line.contains("CpiContext")
+                {
                     let before = &lines[..i].join("\n");
                     // Scope `after` to the current function / item so that a
                     // `reload()` in a *different* function doesn't poison the check.
                     let mut after_end = lines.len();
                     for j in (i + 1)..lines.len() {
                         let t = lines[j].trim_start();
-                        if t.starts_with("pub fn ") || t.starts_with("fn ")
-                            || t.starts_with("#[derive(") || t.starts_with("pub struct ")
-                            || t.starts_with("#[account") || t.starts_with("#[error_code")
+                        if t.starts_with("pub fn ")
+                            || t.starts_with("fn ")
+                            || t.starts_with("#[derive(")
+                            || t.starts_with("pub struct ")
+                            || t.starts_with("#[account")
+                            || t.starts_with("#[error_code")
                         {
                             after_end = j;
                             break;
                         }
                     }
                     let after = &lines[i..after_end].join("\n");
-                    let fields = [".load()", ".data", ".amount", ".price", ".nonce", ".total_staked",
-                                  ".input", ".state", ".balance", ".rewards", ".metadata", ".approved",
-                                  ".vault", ".qty", ".filled"];
+                    let fields = [
+                        ".load()",
+                        ".data",
+                        ".amount",
+                        ".price",
+                        ".nonce",
+                        ".total_staked",
+                        ".input",
+                        ".state",
+                        ".balance",
+                        ".rewards",
+                        ".metadata",
+                        ".approved",
+                        ".vault",
+                        ".qty",
+                        ".filled",
+                    ];
                     let has_before = fields.iter().any(|f| before.contains(f));
                     let has_after = fields.iter().any(|f| after.contains(f));
-                    if has_before && has_after && !after.contains("AccountReload") && !after.contains("reload()") {
+                    if has_before
+                        && has_after
+                        && !after.contains("AccountReload")
+                        && !after.contains("reload()")
+                    {
                         patterns.has_cpi_after_state_read = true;
                     }
                 }
@@ -363,7 +435,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             && (code.contains("invoke(") || code.contains("invoke_signed("))
         {
             for field in [".approved", ".state", ".data", ".nonce", ".total_staked"] {
-                let writes: Vec<_> = lines.iter().enumerate()
+                let writes: Vec<_> = lines
+                    .iter()
+                    .enumerate()
                     .filter(|(_, l)| l.to_lowercase().contains(&format!("{} =", field)))
                     .collect();
                 if writes.len() >= 2 {
@@ -380,11 +454,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── Indirect CPI via helper function calls (reentrancy-like) ──
         for (i, line) in lines.iter().enumerate() {
             let trimmed = line.trim();
-            let is_helper_call = (trimmed.contains("invoke_") || trimmed.contains("callback")
-                || trimmed.contains("external_") || trimmed.contains("handler")
-                || trimmed.contains("oracle") || trimmed.contains("aggregator")
+            let is_helper_call = (trimmed.contains("invoke_")
+                || trimmed.contains("callback")
+                || trimmed.contains("external_")
+                || trimmed.contains("handler")
+                || trimmed.contains("oracle")
+                || trimmed.contains("aggregator")
                 || trimmed.contains("yield_"))
-                && (trimmed.contains("(&ctx.accounts.") || trimmed.contains("(&") || trimmed.contains("ctx.accounts."));
+                && (trimmed.contains("(&ctx.accounts.")
+                    || trimmed.contains("(&")
+                    || trimmed.contains("ctx.accounts."));
             if is_helper_call {
                 let window_start = i.saturating_sub(15);
                 let window_end = (i + 15).min(lines.len());
@@ -423,10 +502,13 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── PDA without has_one constraint ──
         for body in &struct_bodies {
             let body_code = code_only(body);
-            let has_pda_comment = body.contains("/// PDA") || body.contains("// PDA") || body.contains("PDA without");
+            let has_pda_comment =
+                body.contains("/// PDA") || body.contains("// PDA") || body.contains("PDA without");
             let lower = body.to_lowercase();
-            let has_pda_field = lower.contains("pub ") && (lower.contains("_pda") || lower.contains("pda_"));
-            let has_named_pda = body.to_lowercase().contains("callback_pda") || body.to_lowercase().contains("pool_authority_pda");
+            let has_pda_field =
+                lower.contains("pub ") && (lower.contains("_pda") || lower.contains("pda_"));
+            let has_named_pda = body.to_lowercase().contains("callback_pda")
+                || body.to_lowercase().contains("pool_authority_pda");
             if has_pda_comment || has_pda_field || has_named_pda {
                 if !body_code.contains("has_one") && !body_code.contains("constraint =") {
                     patterns.has_pda_without_constraint = true;
@@ -437,16 +519,25 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── init_if_needed with fixed / literal seeds (re-initializable) ──
         for body in &struct_bodies {
             let body_code = code_only(body);
-            if !body_code.contains("init_if_needed") { continue; }
+            if !body_code.contains("init_if_needed") {
+                continue;
+            }
             for line in body_code.lines() {
                 let trimmed = line.trim();
                 if trimmed.starts_with("seeds = [") || trimmed.starts_with("seeds=[") {
                     let seeds_part = if let Some(start) = line.find('[') {
                         if let Some(end) = line[start..].find(']') {
                             &line[start..start + end + 1]
-                        } else { "" }
-                    } else { "" };
-                    if seeds_part.contains("b\"") && !seeds_part.contains(".key()") && !seeds_part.contains("as_ref()") {
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+                    if seeds_part.contains("b\"")
+                        && !seeds_part.contains(".key()")
+                        && !seeds_part.contains("as_ref()")
+                    {
                         patterns.has_init_with_fixed_seeds = true;
                     }
                 }
@@ -456,16 +547,25 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── Any init (init or init_if_needed) with fixed seeds (front-runnable) ──
         for body in &struct_bodies {
             let body_code = code_only(body);
-            if !body_code.contains("init,") && !body_code.contains("init_if_needed") { continue; }
+            if !body_code.contains("init,") && !body_code.contains("init_if_needed") {
+                continue;
+            }
             for line in body_code.lines() {
                 let trimmed = line.trim();
                 if trimmed.starts_with("seeds = [") || trimmed.starts_with("seeds=[") {
                     let seeds_part = if let Some(start) = line.find('[') {
                         if let Some(end) = line[start..].find(']') {
                             &line[start..start + end + 1]
-                        } else { "" }
-                    } else { "" };
-                    if seeds_part.contains("b\"") && !seeds_part.contains(".key()") && !seeds_part.contains("as_ref()") {
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+                    if seeds_part.contains("b\"")
+                        && !seeds_part.contains(".key()")
+                        && !seeds_part.contains("as_ref()")
+                    {
                         patterns.has_any_init_with_fixed_seeds = true;
                     }
                 }
@@ -475,11 +575,16 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── init with unchecked admin (AccountInfo / UncheckedAccount on authority-like field) ──
         for body in &struct_bodies {
             let body_code = code_only(body);
-            if !body_code.contains("init,") && !body_code.contains("init_if_needed") { continue; }
+            if !body_code.contains("init,") && !body_code.contains("init_if_needed") {
+                continue;
+            }
             let body_lines: Vec<&str> = body_code.lines().collect();
             for (idx, line) in body_lines.iter().enumerate() {
                 let trimmed = line.trim();
-                if trimmed.starts_with("pub ") && (trimmed.contains("AccountInfo<'info>") || trimmed.contains("UncheckedAccount<'info>")) {
+                if trimmed.starts_with("pub ")
+                    && (trimmed.contains("AccountInfo<'info>")
+                        || trimmed.contains("UncheckedAccount<'info>"))
+                {
                     let lower = trimmed.to_lowercase();
                     // Exclude known safe patterns: external programs passed as unchecked references
                     // (mpl_, spl_, token_, system_, associated_, bpf_, event_, gas_, gateway_,
@@ -503,7 +608,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         // exclude.  Likewise "new_owner" / "new_authority" are transfer targets.
                         || lower.contains("destination")
                         || lower.starts_with("pub new_");
-                    if is_external_program { continue; }
+                    if is_external_program {
+                        continue;
+                    }
                     // Exclude authority-like fields that are PDA-derived: if the account attribute
                     // block immediately preceding this field (up to 8 lines back) contains
                     // `seeds = [` then the field is PDA-constrained and cannot be front-run.
@@ -516,7 +623,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                             lt.starts_with("seeds = [") || lt.starts_with("seeds=[")
                         })
                     };
-                    if has_seeds_constraint { continue; }
+                    if has_seeds_constraint {
+                        continue;
+                    }
                     if lower.contains("authority")
                         || lower.contains("admin")
                         || lower.contains("owner")
@@ -568,7 +677,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             let body_lines_raw: Vec<_> = body.lines().collect();
             // Find /// CHECK: lines and look at the following account attribute
             for (idx, line) in body_lines_raw.iter().enumerate() {
-                if !line.contains("/// CHECK:") && !line.contains("// CHECK:") { continue; }
+                if !line.contains("/// CHECK:") && !line.contains("// CHECK:") {
+                    continue;
+                }
                 // Look ahead: find the associated #[account(...)] block and pub field line
                 let window_end = (idx + 12).min(body_lines_raw.len());
                 let window = &body_lines_raw[idx..window_end].join("\n");
@@ -578,7 +689,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 // No has_one in this field's constraint block
                 let no_has_one = !window_code.contains("has_one");
                 // Field is mutable
-                let is_mutable = window.contains("mut,") || window.contains("mut]") || window.contains("mut)");
+                let is_mutable =
+                    window.contains("mut,") || window.contains("mut]") || window.contains("mut)");
                 if has_seeds && no_has_one && is_mutable {
                     patterns.has_check_on_seeded_no_has_one = true;
                 }
@@ -590,24 +702,35 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // The mapper stores struct names in AccountNode.name, not field names; we scan source directly.
         for body in &struct_bodies {
             let body_code = code_only(body);
-            if !body_code.contains("init,") && !body_code.contains("init_if_needed") { continue; }
+            if !body_code.contains("init,") && !body_code.contains("init_if_needed") {
+                continue;
+            }
             // Does this init body have fixed seeds pointing to a config/global/state PDA?
             let has_global_seeds = body_code.lines().any(|l| {
                 let t = l.trim();
                 (t.starts_with("seeds = [") || t.starts_with("seeds=[")) && {
                     let seeds_part = if let Some(s) = l.find('[') {
-                        if let Some(e) = l[s..].find(']') { &l[s..s+e+1] } else { "" }
-                    } else { "" };
-                    seeds_part.contains("b\"") && !seeds_part.contains(".key()") && !seeds_part.contains("as_ref()")
+                        if let Some(e) = l[s..].find(']') {
+                            &l[s..s + e + 1]
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+                    seeds_part.contains("b\"")
+                        && !seeds_part.contains(".key()")
+                        && !seeds_part.contains("as_ref()")
                 }
             });
             // Is there a field named with config/global/state/registry?
             let has_global_field = body_code.lines().any(|l| {
                 let l_lower = l.to_lowercase();
-                l_lower.trim().starts_with("pub ") && (
-                    l_lower.contains("config") || l_lower.contains("global")
-                    || l_lower.contains("registry") || l_lower.contains("state")
-                )
+                l_lower.trim().starts_with("pub ")
+                    && (l_lower.contains("config")
+                        || l_lower.contains("global")
+                        || l_lower.contains("registry")
+                        || l_lower.contains("state"))
             });
             // Is there a Signer present?
             let has_signer_field = body_code.contains("Signer<'info>");
@@ -623,7 +746,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // no discriminator/is_initialized guard prevents account overwrite.
         for body in &struct_bodies {
             let body_code = code_only(body);
-            if !body_code.contains("init_if_needed") { continue; }
+            if !body_code.contains("init_if_needed") {
+                continue;
+            }
             // No is_initialized field or check in the struct body
             let no_guard = !body_code.to_lowercase().contains("is_initialized")
                 && !body_code.contains("discriminator")
@@ -631,11 +756,15 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             // Has a mutable financial field (so the account actually holds value)
             let has_financial_field = body_code.lines().any(|l| {
                 let ll = l.to_lowercase();
-                ll.trim().starts_with("pub ") && (
-                    ll.contains("amount") || ll.contains("balance") || ll.contains("lamports")
-                    || ll.contains("price") || ll.contains("value") || ll.contains("proposal")
-                    || ll.contains("vote") || ll.contains("stake")
-                )
+                ll.trim().starts_with("pub ")
+                    && (ll.contains("amount")
+                        || ll.contains("balance")
+                        || ll.contains("lamports")
+                        || ll.contains("price")
+                        || ll.contains("value")
+                        || ll.contains("proposal")
+                        || ll.contains("vote")
+                        || ll.contains("stake"))
             });
             if no_guard && has_financial_field {
                 patterns.has_init_if_needed_no_guard = true;
@@ -648,19 +777,30 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // unchecked casts even though the call site looks safe syntactically.
         {
             let financial_math_macros = [
-                "checked_math!", "safe_math!", "math_error!", "fixed_math!",
-                "precise_number!", "decimal_math!", "i80f48!", "fp32!",
+                "checked_math!",
+                "safe_math!",
+                "math_error!",
+                "fixed_math!",
+                "precise_number!",
+                "decimal_math!",
+                "i80f48!",
+                "fp32!",
             ];
             let has_macro = financial_math_macros.iter().any(|m| code.contains(m));
             // Also check for any `!(` pattern near u128/i128 in arithmetic context
-            let has_u128_macro_context = code.contains("u128") && (
-                code.contains("as u64") || code.contains("as i64") || code.contains("as u32")
-            ) && lines.iter().any(|l| {
-                let ll = l.trim();
-                (ll.contains("u128") || ll.contains("i128")) && ll.contains("!(")
-                    && (ll.contains("price") || ll.contains("amount") || ll.contains("value")
-                        || ll.contains("liquidity") || ll.contains("reserve") || ll.contains("lp"))
-            });
+            let has_u128_macro_context = code.contains("u128")
+                && (code.contains("as u64") || code.contains("as i64") || code.contains("as u32"))
+                && lines.iter().any(|l| {
+                    let ll = l.trim();
+                    (ll.contains("u128") || ll.contains("i128"))
+                        && ll.contains("!(")
+                        && (ll.contains("price")
+                            || ll.contains("amount")
+                            || ll.contains("value")
+                            || ll.contains("liquidity")
+                            || ll.contains("reserve")
+                            || ll.contains("lp"))
+                });
             if has_macro || has_u128_macro_context {
                 patterns.has_custom_math_macro_cast = true;
             }
@@ -669,24 +809,55 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // ── Post-CPI stale field read (cross-instruction staleness) ──
         // Broader than has_cpi_after_state_read: covers order/settlement/position fields
         // that are not in the original field list. Targets Dexalot/Axelar patterns.
-        if code.contains("invoke(") || code.contains("invoke_signed(") || code.contains("CpiContext") {
+        if code.contains("invoke(")
+            || code.contains("invoke_signed(")
+            || code.contains("CpiContext")
+        {
             let stale_fields = [
-                ".load()", ".data", ".amount", ".price", ".nonce", ".total_staked",
-                ".input", ".state", ".balance", ".rewards", ".metadata", ".approved",
-                ".vault", ".qty", ".filled", ".order", ".filled_amount", ".qty_left",
-                ".position", ".command_id", ".sequence", ".msg_hash", ".payload",
-                ".status", ".total", ".reserve", ".base_amount", ".quote_amount",
+                ".load()",
+                ".data",
+                ".amount",
+                ".price",
+                ".nonce",
+                ".total_staked",
+                ".input",
+                ".state",
+                ".balance",
+                ".rewards",
+                ".metadata",
+                ".approved",
+                ".vault",
+                ".qty",
+                ".filled",
+                ".order",
+                ".filled_amount",
+                ".qty_left",
+                ".position",
+                ".command_id",
+                ".sequence",
+                ".msg_hash",
+                ".payload",
+                ".status",
+                ".total",
+                ".reserve",
+                ".base_amount",
+                ".quote_amount",
             ];
             for (i, line) in lines.iter().enumerate() {
-                let is_cpi_line = line.contains("invoke(") || line.contains("invoke_signed(")
+                let is_cpi_line = line.contains("invoke(")
+                    || line.contains("invoke_signed(")
                     || (line.contains("CpiContext") && !line.contains("//"));
-                if !is_cpi_line { continue; }
+                if !is_cpi_line {
+                    continue;
+                }
                 // Scope to current function
                 let mut fn_end = lines.len();
                 for j in (i + 1)..lines.len() {
                     let t = lines[j].trim_start();
-                    if t.starts_with("pub fn ") || t.starts_with("fn ")
-                        || t.starts_with("#[derive(") || t.starts_with("pub struct ")
+                    if t.starts_with("pub fn ")
+                        || t.starts_with("fn ")
+                        || t.starts_with("#[derive(")
+                        || t.starts_with("pub struct ")
                     {
                         fn_end = j;
                         break;
@@ -697,8 +868,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 // The account field is also accessed before the CPI (confirming it was live data)
                 let before = &lines[..i].join("\n");
                 let has_read_before = stale_fields.iter().any(|f| before.contains(f));
-                if has_stale_after && has_read_before
-                    && !after.contains("reload()") && !after.contains("AccountReload")
+                if has_stale_after
+                    && has_read_before
+                    && !after.contains("reload()")
+                    && !after.contains("AccountReload")
                     && !after.contains(".reload(")
                 {
                     patterns.has_post_cpi_stale_field_read = true;
@@ -759,14 +932,22 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 let body_lines_raw: Vec<&str> = body.lines().collect();
                 for (idx, line) in body_lines_raw.iter().enumerate() {
                     let trimmed = line.trim();
-                    if !trimmed.starts_with("pub ") { continue; }
+                    if !trimmed.starts_with("pub ") {
+                        continue;
+                    }
                     let lower = trimmed.to_lowercase();
-                    if !lower.contains("escrow") { continue; }
-                    let is_unchecked = trimmed.contains("UncheckedAccount") || trimmed.contains("AccountInfo<");
-                    if !is_unchecked { continue; }
+                    if !lower.contains("escrow") {
+                        continue;
+                    }
+                    let is_unchecked =
+                        trimmed.contains("UncheckedAccount") || trimmed.contains("AccountInfo<");
+                    if !is_unchecked {
+                        continue;
+                    }
                     let lookback_start = idx.saturating_sub(10);
                     let attr_block = body_lines_raw[lookback_start..idx].join("\n");
-                    let has_seeds = attr_block.contains("seeds = [") || attr_block.contains("seeds=[");
+                    let has_seeds =
+                        attr_block.contains("seeds = [") || attr_block.contains("seeds=[");
                     if !has_seeds {
                         patterns.has_unchecked_escrow_invoke_signed = true;
                     }
@@ -815,7 +996,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                             || name_part.to_lowercase().contains("config")
                         {
                             in_struct = true;
-                            brace_depth = trimmed.chars().filter(|&c| c == '{').count()
+                            brace_depth = trimmed
+                                .chars()
+                                .filter(|&c| c == '{')
+                                .count()
                                 .saturating_sub(trimmed.chars().filter(|&c| c == '}').count());
                             current_struct_name = name_part;
                             current_fields.clear();
@@ -823,11 +1007,13 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     }
                 } else {
                     brace_depth += trimmed.chars().filter(|&c| c == '{').count();
-                    brace_depth = brace_depth.saturating_sub(trimmed.chars().filter(|&c| c == '}').count());
+                    brace_depth =
+                        brace_depth.saturating_sub(trimmed.chars().filter(|&c| c == '}').count());
                     if brace_depth == 0 {
                         in_struct = false;
                         if !current_fields.is_empty() {
-                            input_structs.push((current_struct_name.clone(), current_fields.clone()));
+                            input_structs
+                                .push((current_struct_name.clone(), current_fields.clone()));
                         }
                     } else if trimmed.starts_with("pub ") {
                         // Extract field name: `pub migration_token_allocation: u64,`
@@ -857,13 +1043,19 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     let trimmed = line.trim();
                     if fn_start.is_none() {
                         // Detect update/set function signatures
-                        let is_update_fn = (trimmed.starts_with("pub fn ") || trimmed.starts_with("fn "))
-                            && (trimmed.contains("update_") || trimmed.contains("set_")
-                                || trimmed.contains("_settings") || trimmed.contains("_params"));
+                        let is_update_fn = (trimmed.starts_with("pub fn ")
+                            || trimmed.starts_with("fn "))
+                            && (trimmed.contains("update_")
+                                || trimmed.contains("set_")
+                                || trimmed.contains("_settings")
+                                || trimmed.contains("_params"));
                         if is_update_fn {
                             fn_name = trimmed.to_string();
                             fn_start = Some(idx);
-                            fn_brace_depth = trimmed.chars().filter(|&c| c == '{').count()
+                            fn_brace_depth = trimmed
+                                .chars()
+                                .filter(|&c| c == '{')
+                                .count()
                                 .saturating_sub(trimmed.chars().filter(|&c| c == '}').count());
                             fn_body_lines.clear();
                             fn_body_lines.push(line);
@@ -877,7 +1069,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                             // End of function — analyze body
                             let fn_body = fn_body_lines.join("\n");
                             // Count self.X = params.X assignments
-                            let assign_count = fn_body_lines.iter()
+                            let assign_count = fn_body_lines
+                                .iter()
                                 .filter(|l| {
                                     let t = l.trim();
                                     t.starts_with("self.") && t.contains("= params.")
@@ -910,10 +1103,7 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                                     }
                                     // Only flag if exactly 1 field is missing (specific oversight)
                                     // and input struct has >= 5 fields (real settings struct)
-                                    if gap_count >= 1
-                                        && gap_count <= 2
-                                        && fields.len() >= 5
-                                    {
+                                    if gap_count >= 1 && gap_count <= 2 && fields.len() >= 5 {
                                         patterns.has_settings_field_write_gap = true;
                                     }
                                 }
@@ -940,16 +1130,22 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 let mut token_mgr_fields: Vec<(usize, String)> = Vec::new();
                 for (idx, line) in body_lines_raw.iter().enumerate() {
                     let trimmed = line.trim();
-                    if !trimmed.starts_with("pub ") { continue; }
+                    if !trimmed.starts_with("pub ") {
+                        continue;
+                    }
                     let lower = trimmed.to_lowercase();
-                    let is_unchecked = trimmed.contains("UncheckedAccount") || trimmed.contains("AccountInfo<");
-                    if !is_unchecked { continue; }
+                    let is_unchecked =
+                        trimmed.contains("UncheckedAccount") || trimmed.contains("AccountInfo<");
+                    if !is_unchecked {
+                        continue;
+                    }
                     let is_token_manager_role = lower.contains("token_manager")
                         || lower.contains("token_mint")
                         || (lower.contains("token") && lower.contains("ata"))
                         || lower.contains("token_program");
                     if is_token_manager_role {
-                        let field_name = trimmed.strip_prefix("pub ")
+                        let field_name = trimmed
+                            .strip_prefix("pub ")
                             .and_then(|s| s.split(':').next())
                             .map(|s| s.trim().to_string())
                             .unwrap_or_default();
@@ -965,7 +1161,9 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         let mut field_has_constraint = false;
                         // Scan backward up to 6 lines looking for #[account(...)] attribute
                         for back in (1..=6).rev() {
-                            if *field_idx < back { continue; }
+                            if *field_idx < back {
+                                continue;
+                            }
                             let attr_line = body_lines_raw[field_idx - back].trim();
                             if attr_line.starts_with("#[account(") {
                                 let lower = attr_line.to_lowercase();
@@ -1001,25 +1199,33 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             // Collect (field_name, anchor_inner_type) for each mutable field
             let mut mut_typed_fields: Vec<(String, String)> = Vec::new();
             for (idx, line) in body_lines.iter().enumerate() {
-                let is_mut = line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
-                if !is_mut { continue; }
+                let is_mut =
+                    line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
+                if !is_mut {
+                    continue;
+                }
                 for j in (idx + 1)..(idx + 8).min(body_lines.len()) {
                     let fl = body_lines[j].trim();
-                    if !fl.starts_with("pub ") { continue; }
+                    if !fl.starts_with("pub ") {
+                        continue;
+                    }
                     // Extract field name
-                    let field_name = fl.strip_prefix("pub ")
+                    let field_name = fl
+                        .strip_prefix("pub ")
                         .and_then(|s| s.split(':').next())
                         .map(|s| s.trim().to_lowercase())
                         .unwrap_or_default();
                     // Extract inner type of Account<'info, T> → T
                     let inner_type = if let Some(start) = fl.find("Account<'info,") {
                         let rest = &fl[start + "Account<'info,".len()..];
-                        rest.split('>').next()
+                        rest.split('>')
+                            .next()
                             .map(|s| s.trim().to_string())
                             .unwrap_or_default()
                     } else if let Some(start) = fl.find("AccountLoader<'info,") {
                         let rest = &fl[start + "AccountLoader<'info,".len()..];
-                        rest.split('>').next()
+                        rest.split('>')
+                            .next()
                             .map(|s| s.trim().to_string())
                             .unwrap_or_default()
                     } else {
@@ -1032,7 +1238,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 }
             }
             // Check for same inner type appearing twice — no key constraint between them
-            let no_key_constraint = !body_code.contains("key() !=") && !body_code.contains("key() ==");
+            let no_key_constraint =
+                !body_code.contains("key() !=") && !body_code.contains("key() ==");
             if no_key_constraint && mut_typed_fields.len() >= 2 {
                 'type_dup: for i in 0..mut_typed_fields.len() {
                     for j in (i + 1)..mut_typed_fields.len() {
@@ -1054,7 +1261,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             let body_lines: Vec<_> = body_code.lines().collect();
             let mut mut_fields: Vec<String> = Vec::new();
             for (idx, line) in body_lines.iter().enumerate() {
-                let is_mut = line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
+                let is_mut =
+                    line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
                 if is_mut {
                     // Look ahead for the pub field declaration
                     for j in (idx + 1)..(idx + 8).min(body_lines.len()) {
@@ -1062,7 +1270,12 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         if fl.starts_with("pub ") {
                             // Extract field name: "pub vault_a: Account<...>"
                             if let Some(name_part) = fl.strip_prefix("pub ") {
-                                let field_name = name_part.split(':').next().unwrap_or("").trim().to_lowercase();
+                                let field_name = name_part
+                                    .split(':')
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim()
+                                    .to_lowercase();
                                 if !field_name.is_empty() {
                                     mut_fields.push(field_name);
                                 }
@@ -1073,7 +1286,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                 }
             }
             // Does the struct have no key-equality constraint between the pair?
-            let no_key_constraint = !body_code.contains("key() !=") && !body_code.contains("key() ==");
+            let no_key_constraint =
+                !body_code.contains("key() !=") && !body_code.contains("key() ==");
             // Check for _a/_b pairs or shared base word
             if mut_fields.len() >= 2 {
                 'dup_outer: for i in 0..mut_fields.len() {
@@ -1082,18 +1296,20 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         let b = &mut_fields[j];
                         // Pattern 1: explicit _a / _b / _from / _to suffix — only fire when
                         // both names have the same base after stripping the pairing suffix.
-                        let a_stripped = a.strip_suffix("_a")
+                        let a_stripped = a
+                            .strip_suffix("_a")
                             .or_else(|| a.strip_suffix("_b"))
                             .or_else(|| a.strip_suffix("_from"))
                             .or_else(|| a.strip_suffix("_to"))
                             .unwrap_or(a.as_str());
-                        let b_stripped = b.strip_suffix("_a")
+                        let b_stripped = b
+                            .strip_suffix("_a")
                             .or_else(|| b.strip_suffix("_b"))
                             .or_else(|| b.strip_suffix("_from"))
                             .or_else(|| b.strip_suffix("_to"))
                             .unwrap_or(b.as_str());
-                        if a_stripped == b_stripped && !a_stripped.is_empty()
-                            && (a != b) // only if they actually differ (suffixes were stripped)
+                        if a_stripped == b_stripped && !a_stripped.is_empty() && (a != b)
+                        // only if they actually differ (suffixes were stripped)
                         {
                             if no_key_constraint {
                                 patterns.has_duplicate_mutable_pair = true;
@@ -1138,11 +1354,14 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     let window = &body_lines_raw[i..window_end];
                     let has_mut_attr = window.iter().any(|l| {
                         let t = l.trim();
-                        t.starts_with("#[account(") && (t.contains("mut,") || t.contains("mut)") || t.contains("mut]"))
+                        t.starts_with("#[account(")
+                            && (t.contains("mut,") || t.contains("mut)") || t.contains("mut]"))
                     });
                     let is_unchecked_type = window.iter().any(|l| {
                         let t = l.trim();
-                        t.starts_with("pub ") && (t.contains("AccountInfo<'info>") || t.contains("UncheckedAccount<'info>"))
+                        t.starts_with("pub ")
+                            && (t.contains("AccountInfo<'info>")
+                                || t.contains("UncheckedAccount<'info>"))
                     });
                     if has_mut_attr && is_unchecked_type {
                         mutable_unchecked_count += 1;
@@ -1167,7 +1386,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             // and verify the field itself is not a Signer and not a token type.
             let mut has_unlinked_non_token_mut = false;
             for (idx, line) in body_lines.iter().enumerate() {
-                let is_mut = line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
+                let is_mut =
+                    line.contains("mut,") || line.contains("mut]") || line.contains("mut)");
                 let is_signer_attr = line.contains("Signer<'info>");
                 if is_mut && !is_signer_attr {
                     for j in (idx + 1)..(idx + 8).min(body_lines.len()) {
@@ -1199,7 +1419,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             if has_signer && has_unlinked_non_token_mut && !has_link {
                 patterns.has_mutable_account_with_signer_no_link = true;
             }
-            let has_token_account = body_code.contains("TokenAccount") || body_code.contains("Account<'info, Mint>");
+            let has_token_account =
+                body_code.contains("TokenAccount") || body_code.contains("Account<'info, Mint>");
             if has_signer && has_token_account && !has_link {
                 patterns.has_token_account_without_authority = true;
             }
@@ -1210,7 +1431,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // signals that the checked variant performs security validation this version skips.
         // E.g. Solend: get_single_price_unchecked, unpack_unchecked, get_price_unchecked
         if !is_test_or_util_file && code.contains("next_account_info") {
-            let unchecked_call_lines: Vec<_> = lines.iter()
+            let unchecked_call_lines: Vec<_> = lines
+                .iter()
                 .filter(|l| {
                     let t = l.trim();
                     t.contains("_unchecked(") || t.contains("_unchecked_mut(")
@@ -1229,7 +1451,8 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         // from_bytes/from_bytes_mut are standard zero-copy Pod deserialization — NOT a signal.
         // Exclude test/util files: bytes_of_mut in test helpers is not production risk.
         if !is_test_or_util_file
-            && (code.contains("bytemuck::bytes_of_mut") || code.contains("bytemuck::cast")
+            && (code.contains("bytemuck::bytes_of_mut")
+                || code.contains("bytemuck::cast")
                 || code.contains("bytemuck::cast_slice"))
         {
             patterns.has_bytemuck_unsafe_cast = true;

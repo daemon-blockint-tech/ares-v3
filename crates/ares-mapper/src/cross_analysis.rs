@@ -39,20 +39,44 @@ impl CrossInstructionAnalyzer {
             for (account, effect) in &instr.effects {
                 match effect {
                     AccountEffect::Read => {
-                        analyzer.reads.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .reads
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                     }
                     AccountEffect::Write => {
-                        analyzer.writes.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .writes
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                     }
                     AccountEffect::Create => {
-                        analyzer.creates.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .creates
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                         // A creation also counts as a write
-                        analyzer.writes.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .writes
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                     }
                     AccountEffect::Close => {
-                        analyzer.closes.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .closes
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                         // A close is also a write
-                        analyzer.writes.entry(account.clone()).or_default().push(instr.name.clone());
+                        analyzer
+                            .writes
+                            .entry(account.clone())
+                            .or_default()
+                            .push(instr.name.clone());
                     }
                     AccountEffect::CpiPass => {
                         // CPI pass does not directly change local read/write maps;
@@ -92,7 +116,8 @@ impl CrossInstructionAnalyzer {
                         let reader_instr = graph.instructions.iter().find(|i| i.name == *reader);
                         let revalidates = reader_instr.map_or(false, |i| {
                             // If the reader has a signer or owner check, we consider it re-validated
-                            i.has_signer_check.unwrap_or(false) || i.has_owner_check.unwrap_or(false)
+                            i.has_signer_check.unwrap_or(false)
+                                || i.has_owner_check.unwrap_or(false)
                         });
 
                         if !revalidates {
@@ -114,7 +139,10 @@ impl CrossInstructionAnalyzer {
         }
 
         if !findings.is_empty() {
-            info!("Cross-instruction analysis: {} missing re-validation findings", findings.len());
+            info!(
+                "Cross-instruction analysis: {} missing re-validation findings",
+                findings.len()
+            );
         }
 
         findings
@@ -136,7 +164,12 @@ impl CrossInstructionAnalyzer {
             let written_accounts: HashSet<String> = instr
                 .effects
                 .iter()
-                .filter(|(_, e)| matches!(e, AccountEffect::Write | AccountEffect::Create | AccountEffect::Close))
+                .filter(|(_, e)| {
+                    matches!(
+                        e,
+                        AccountEffect::Write | AccountEffect::Create | AccountEffect::Close
+                    )
+                })
                 .map(|(name, _)| name.clone())
                 .collect();
 
@@ -185,10 +218,12 @@ impl CrossInstructionAnalyzer {
                     }
 
                     let writer_instr = graph.instructions.iter().find(|i| i.name == *writer);
-                    let has_init_check = writer_instr.and_then(|_i| {
-                        // Look for any account in the graph matching this writer that has init check
-                        graph.accounts.iter().find(|a| a.name == *account)
-                    }).map_or(false, |a| a.is_initialized_check.unwrap_or(false));
+                    let has_init_check = writer_instr
+                        .and_then(|_i| {
+                            // Look for any account in the graph matching this writer that has init check
+                            graph.accounts.iter().find(|a| a.name == *account)
+                        })
+                        .map_or(false, |a| a.is_initialized_check.unwrap_or(false));
 
                     if !has_init_check {
                         findings.push(CrossInstructionFinding {
@@ -222,9 +257,14 @@ pub fn analyze(graph: &ProgramGraph) -> AresResult<Vec<CrossInstructionFinding>>
     all.extend(analyzer.find_state_transition_gaps(graph));
 
     if !all.is_empty() {
-        info!("Cross-instruction analysis complete: {} findings", all.len());
+        info!(
+            "Cross-instruction analysis complete: {} findings",
+            all.len()
+        );
     } else {
-        info!("Cross-instruction analysis complete: no cross-instruction vulnerabilities detected.");
+        info!(
+            "Cross-instruction analysis complete: no cross-instruction vulnerabilities detected."
+        );
     }
 
     Ok(all)

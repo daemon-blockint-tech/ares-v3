@@ -1,5 +1,5 @@
-use ares_core::{Finding, SuppressedFinding, VulnerabilityCategory};
 use crate::source_patterns::SourcePatterns;
+use ares_core::{Finding, SuppressedFinding, VulnerabilityCategory};
 use tracing::info;
 
 /// Phase 4 Deterministic Local Judge
@@ -11,7 +11,9 @@ pub struct LocalJudge {
 
 impl LocalJudge {
     pub fn new(extended_heuristics: bool) -> Self {
-        Self { extended_heuristics }
+        Self {
+            extended_heuristics,
+        }
     }
 
     /// Evaluates a list of findings against the source patterns.
@@ -31,7 +33,10 @@ impl LocalJudge {
             let mut reason = String::new();
 
             // Rule 1: Type Cosplay
-            if matches!(cat, VulnerabilityCategory::TypeCosplay | VulnerabilityCategory::OwnershipCheck) {
+            if matches!(
+                cat,
+                VulnerabilityCategory::TypeCosplay | VulnerabilityCategory::OwnershipCheck
+            ) {
                 if patterns.is_anchor_heavy && patterns.unchecked_fields == 0 {
                     should_suppress = true;
                     reason = "Anchor-heavy protocol with fully typed accounts automatically validates discriminator/ownership.".to_string();
@@ -59,7 +64,10 @@ impl LocalJudge {
 
             // Rule 4: Reentrancy Risk
             if matches!(cat, VulnerabilityCategory::ReentrancyRisk) {
-                let overlap: Vec<_> = patterns.write_accounts.intersection(&patterns.cpi_accounts).collect();
+                let overlap: Vec<_> = patterns
+                    .write_accounts
+                    .intersection(&patterns.cpi_accounts)
+                    .collect();
                 if overlap.is_empty() {
                     should_suppress = true;
                     reason = "No account is both written to and passed to a CPI call within the same instruction.".to_string();
@@ -78,7 +86,9 @@ impl LocalJudge {
                     }
                 }
 
-                if matches!(cat, VulnerabilityCategory::DuplicateMutableAccounts) && patterns.is_anchor_heavy {
+                if matches!(cat, VulnerabilityCategory::DuplicateMutableAccounts)
+                    && patterns.is_anchor_heavy
+                {
                     should_suppress = true;
                     reason = "Extended v29 heuristic: Anchor naturally prevents duplicate mutable accounts via constraints.".to_string();
                 }
@@ -95,8 +105,10 @@ impl LocalJudge {
             }
         }
 
-
-        info!("Local Judge: Suppressed {} false positives deterministically", suppressed.len());
+        info!(
+            "Local Judge: Suppressed {} false positives deterministically",
+            suppressed.len()
+        );
         (retained, suppressed)
     }
 }
@@ -104,7 +116,7 @@ impl LocalJudge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ares_core::{Finding, Severity, CodeLocation, VulnerabilityCategory};
+    use ares_core::{CodeLocation, Finding, Severity, VulnerabilityCategory};
     use std::collections::HashSet;
 
     fn dummy_finding(category: VulnerabilityCategory) -> Finding {
@@ -127,7 +139,7 @@ mod tests {
         let judge = LocalJudge::new(false);
         let findings = vec![dummy_finding(VulnerabilityCategory::TypeCosplay)];
         let mut patterns = SourcePatterns::default();
-        
+
         patterns.is_anchor_heavy = true;
         patterns.unchecked_fields = 0;
 
@@ -142,7 +154,7 @@ mod tests {
         let judge = LocalJudge::new(false);
         let findings = vec![dummy_finding(VulnerabilityCategory::TypeCosplay)];
         let mut patterns = SourcePatterns::default();
-        
+
         patterns.is_anchor_heavy = true;
         patterns.unchecked_fields = 1; // Unchecked field means we shouldn't suppress
 
@@ -151,4 +163,3 @@ mod tests {
         assert_eq!(suppressed.len(), 0);
     }
 }
-

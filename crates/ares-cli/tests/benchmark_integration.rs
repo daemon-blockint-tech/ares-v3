@@ -18,13 +18,17 @@ async fn test_benchmark_against_solana_attack_vectors() {
 
     let result = ares_v3::commands::benchmark::execute(
         &dataset_parent,
-        None,              // no protocol filter
-        true,              // compare baseline
+        None, // no protocol filter
+        true, // compare baseline
         &output,
     )
     .await;
 
-    assert!(result.is_ok(), "Benchmark execution should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Benchmark execution should succeed: {:?}",
+        result.err()
+    );
 
     // Verify the output file exists and contains real measurements
     let content = tokio::fs::read_to_string(&output)
@@ -50,14 +54,11 @@ async fn test_benchmark_against_solana_attack_vectors() {
     );
 
     // Parse to ensure it's valid JSON with non-negative detection metrics
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .expect("Benchmark output should be valid JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&content).expect("Benchmark output should be valid JSON");
 
     let results = json.get("results").and_then(|r| r.as_array());
-    assert!(
-        results.is_some(),
-        "JSON should contain 'results' array"
-    );
+    assert!(results.is_some(), "JSON should contain 'results' array");
 
     let results = results.unwrap();
     // The dataset should have at least a few attack vector programs
@@ -80,22 +81,17 @@ async fn test_benchmark_against_solana_attack_vectors() {
         // Phase 6: precision / recall / f1_score must be present when ground truth loaded
         if let Some(p) = r.get("precision").and_then(|v| v.as_f64()) {
             any_ground_truth = true;
-            assert!(
-                p >= 0.0 && p <= 1.0,
-                "Precision must be in [0.0, 1.0]"
-            );
-            let rec = r.get("recall").and_then(|v| v.as_f64())
+            assert!(p >= 0.0 && p <= 1.0, "Precision must be in [0.0, 1.0]");
+            let rec = r
+                .get("recall")
+                .and_then(|v| v.as_f64())
                 .expect("Recall must accompany precision");
-            assert!(
-                rec >= 0.0 && rec <= 1.0,
-                "Recall must be in [0.0, 1.0]"
-            );
-            let f1 = r.get("f1_score").and_then(|v| v.as_f64())
+            assert!(rec >= 0.0 && rec <= 1.0, "Recall must be in [0.0, 1.0]");
+            let f1 = r
+                .get("f1_score")
+                .and_then(|v| v.as_f64())
                 .expect("F1 score must accompany precision");
-            assert!(
-                f1 >= 0.0 && f1 <= 1.0,
-                "F1 score must be in [0.0, 1.0]"
-            );
+            assert!(f1 >= 0.0 && f1 <= 1.0, "F1 score must be in [0.0, 1.0]");
         }
 
         let execution_time = r

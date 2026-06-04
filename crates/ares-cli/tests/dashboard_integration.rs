@@ -14,14 +14,9 @@ async fn test_dashboard_generates_html() {
     let _ = tokio::fs::remove_file(&dashboard_output).await;
 
     // First run benchmark to produce real JSON
-    ares_v3::commands::benchmark::execute(
-        &dataset_parent,
-        None,
-        true,
-        &benchmark_output,
-    )
-    .await
-    .expect("Benchmark must succeed to produce dashboard input");
+    ares_v3::commands::benchmark::execute(&dataset_parent, None, true, &benchmark_output)
+        .await
+        .expect("Benchmark must succeed to produce dashboard input");
 
     assert!(
         benchmark_output.exists(),
@@ -29,9 +24,13 @@ async fn test_dashboard_generates_html() {
     );
 
     // Now generate dashboard
-    ares_v3::commands::dashboard::execute(&benchmark_output, &dashboard_output, ares_v3::ReportFormat::Html)
-        .await
-        .expect("Dashboard generation should succeed");
+    ares_v3::commands::dashboard::execute(
+        &benchmark_output,
+        &dashboard_output,
+        ares_v3::ReportFormat::Html,
+    )
+    .await
+    .expect("Dashboard generation should succeed");
 
     assert!(
         dashboard_output.exists(),
@@ -55,10 +54,7 @@ async fn test_dashboard_generates_html() {
         html.contains("Per-Protocol Results"),
         "HTML should contain per-protocol table"
     );
-    assert!(
-        html.contains("ARES V3"),
-        "HTML should reference ARES"
-    );
+    assert!(html.contains("ARES V3"), "HTML should reference ARES");
     assert!(
         html.contains("Trident Arena"),
         "HTML should reference Trident Arena baseline"

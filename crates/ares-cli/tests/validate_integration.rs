@@ -2,15 +2,14 @@
 /// and gracefully handles missing `solana-test-validator` binary.
 #[tokio::test]
 async fn test_fork_validator_graceful_missing_binary() {
-    let mut validator = ares_v3::fork_validator::ForkValidator::builder(
-        "https://api.mainnet-beta.solana.com",
-    )
-    .slot(Some(30_000_000))
-    .clone_accounts(vec![
-        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(),
-        "11111111111111111111111111111111".to_string(),
-    ])
-    .build();
+    let mut validator =
+        ares_v3::fork_validator::ForkValidator::builder("https://api.mainnet-beta.solana.com")
+            .slot(Some(30_000_000))
+            .clone_accounts(vec![
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(),
+                "11111111111111111111111111111111".to_string(),
+            ])
+            .build();
 
     // On systems without solana-test-validator installed, start() should fail
     // with a descriptive error rather than panic.

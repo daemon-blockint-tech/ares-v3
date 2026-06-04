@@ -26,7 +26,10 @@ pub struct LlmValidationResult {
 
 impl<'a> LlmJudge<'a> {
     pub fn new(graph: &'a ProgramGraph, config: &'a ares_core::AresConfig) -> Self {
-        Self { _graph: graph, config }
+        Self {
+            _graph: graph,
+            config,
+        }
     }
 
     /// Validate a list of findings through LLM-as-Judge.
@@ -35,7 +38,9 @@ impl<'a> LlmJudge<'a> {
     pub async fn validate(&self, findings: Vec<Finding>) -> Vec<LlmValidationResult> {
         let mut results = Vec::with_capacity(findings.len());
 
-        if !self.config.llm_judge_enabled || matches!(self.config.llm_provider, LlmProvider::Disabled) {
+        if !self.config.llm_judge_enabled
+            || matches!(self.config.llm_provider, LlmProvider::Disabled)
+        {
             info!("LLM-as-Judge is disabled; passing all findings through without LLM validation.");
             for finding in findings {
                 results.push(LlmValidationResult {
@@ -51,7 +56,11 @@ impl<'a> LlmJudge<'a> {
 
         let max_findings = self.config.llm_max_findings_per_scan.max(1);
         let mut prioritized = findings.clone();
-        prioritized.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        prioritized.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let (to_evaluate, skipped): (Vec<_>, Vec<_>) = if prioritized.len() > max_findings {
             info!(
@@ -64,8 +73,11 @@ impl<'a> LlmJudge<'a> {
             (prioritized, vec![])
         };
 
-        info!("LLM-as-Judge validating {} findings via {:?} model={} (max_tokens_per_call={})",
-            to_evaluate.len(), self.config.llm_provider, self.config.llm_model,
+        info!(
+            "LLM-as-Judge validating {} findings via {:?} model={} (max_tokens_per_call={})",
+            to_evaluate.len(),
+            self.config.llm_provider,
+            self.config.llm_model,
             self.config.llm_max_tokens_per_call
         );
 
@@ -82,7 +94,10 @@ impl<'a> LlmJudge<'a> {
                     results.push(result);
                 }
                 Err(e) => {
-                    warn!("LLM evaluation failed for {}: {} — keeping finding", finding.id, e);
+                    warn!(
+                        "LLM evaluation failed for {}: {} — keeping finding",
+                        finding.id, e
+                    );
                     results.push(LlmValidationResult {
                         finding,
                         suppressed: false,
@@ -113,7 +128,9 @@ impl<'a> LlmJudge<'a> {
         if suppressed_count > 0 || !skipped.is_empty() {
             info!(
                 "LLM-as-Judge: suppressed {} of {} evaluated findings, {} skipped due to budget",
-                suppressed_count, evaluated_count, skipped.len()
+                suppressed_count,
+                evaluated_count,
+                skipped.len()
             );
         }
 
@@ -240,9 +257,12 @@ Scoring:
                         return Err(format!("OpenAI API returned {}: {}", status, text));
                     }
 
-                    let json: serde_json::Value = resp.json().await
+                    let json: serde_json::Value = resp
+                        .json()
+                        .await
                         .map_err(|e| format!("OpenAI response parse failed: {}", e))?;
-                    let content = json["choices"][0]["message"]["content"].as_str()
+                    let content = json["choices"][0]["message"]["content"]
+                        .as_str()
                         .ok_or("OpenAI response missing content")?;
                     Ok(content.to_string())
                 }
@@ -271,9 +291,12 @@ Scoring:
                         return Err(format!("Anthropic API returned {}: {}", status, text));
                     }
 
-                    let json: serde_json::Value = resp.json().await
+                    let json: serde_json::Value = resp
+                        .json()
+                        .await
                         .map_err(|e| format!("Anthropic response parse failed: {}", e))?;
-                    let content = json["content"][0]["text"].as_str()
+                    let content = json["content"][0]["text"]
+                        .as_str()
                         .ok_or("Anthropic response missing text")?;
                     Ok(content.to_string())
                 }
@@ -305,16 +328,20 @@ Scoring:
                         return Err(format!("Ollama API returned {}: {}", status, text));
                     }
 
-                    let json: serde_json::Value = resp.json().await
+                    let json: serde_json::Value = resp
+                        .json()
+                        .await
                         .map_err(|e| format!("Ollama response parse failed: {}", e))?;
-                    let content = json["response"].as_str()
+                    let content = json["response"]
+                        .as_str()
                         .ok_or("Ollama response missing response field")?;
                     Ok(content.to_string())
                 }
             }
         };
 
-        timeout(Duration::from_secs(90), inner).await
+        timeout(Duration::from_secs(90), inner)
+            .await
             .unwrap_or_else(|_| Err("LLM request timed out after 90 seconds".to_string()))
     }
 
@@ -323,9 +350,7 @@ Scoring:
     #[cfg(not(feature = "llm-judge"))]
     async fn call_llm(&self, _prompt: &str) -> Result<String, String> {
         match self.config.llm_provider {
-            LlmProvider::Disabled => {
-                Err("LLM provider is disabled".to_string())
-            }
+            LlmProvider::Disabled => Err("LLM provider is disabled".to_string()),
             _ => {
                 // Simulated response: findings with confidence >= 0.85 are likely real
                 // This is a deterministic stub for testing the pipeline architecture
@@ -335,17 +360,20 @@ Scoring:
     }
 
     /// Parse the LLM's JSON response into a structured validation result.
-    fn parse_llm_response(&self, finding: Finding, raw: &str) -> Result<LlmValidationResult, String> {
+    fn parse_llm_response(
+        &self,
+        finding: Finding,
+        raw: &str,
+    ) -> Result<LlmValidationResult, String> {
         // Try to extract JSON from the response (in case LLM wraps it in markdown)
         let json_str = if raw.contains("```json") {
-            raw.split("```json").nth(1)
+            raw.split("```json")
+                .nth(1)
                 .and_then(|s| s.split("```").next())
                 .unwrap_or(raw)
                 .trim()
         } else if raw.contains("```") {
-            raw.split("```").nth(1)
-                .unwrap_or(raw)
-                .trim()
+            raw.split("```").nth(1).unwrap_or(raw).trim()
         } else {
             raw.trim()
         };

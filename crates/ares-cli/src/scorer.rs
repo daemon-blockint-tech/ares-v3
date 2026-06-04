@@ -33,8 +33,7 @@ impl ExploitScorer {
             VulnerabilityCategory::ReentrancyRisk
             | VulnerabilityCategory::ArbitraryCpi
             | VulnerabilityCategory::InvariantViolation => 10,
-            VulnerabilityCategory::SignerAuthorization
-            | VulnerabilityCategory::OwnershipCheck => 5,
+            VulnerabilityCategory::SignerAuthorization | VulnerabilityCategory::OwnershipCheck => 5,
             VulnerabilityCategory::InitializationFrontrunning
             | VulnerabilityCategory::AccountReloading => 3,
             VulnerabilityCategory::FuzzingCrash => 8,

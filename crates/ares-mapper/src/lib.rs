@@ -101,7 +101,10 @@ impl MapperAgent {
         };
 
         if !src_dir.exists() {
-            warn!("No programs/ or src/ directory found at {:?}", self.program_path);
+            warn!(
+                "No programs/ or src/ directory found at {:?}",
+                self.program_path
+            );
             return Ok(graph);
         }
 
@@ -124,7 +127,11 @@ impl MapperAgent {
             // Detect modules
             if content.contains("#[program]") || content.contains("entrypoint!") {
                 graph.modules.push(ModuleNode {
-                    name: path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string(),
+                    name: path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
                     file_path: path.to_path_buf(),
                     is_entrypoint: content.contains("entrypoint!"),
                 });
@@ -133,55 +140,56 @@ impl MapperAgent {
             // Detect instructions (functions in #[program] modules)
             for (line_no, line) in content.lines().enumerate() {
                 let line_num = (line_no + 1) as u32;
-                
+
                 // Look for pub fn declarations that are likely instructions
                 if line.trim().starts_with("pub fn ") {
-                    let fn_name = line.trim()
+                    let fn_name = line
+                        .trim()
                         .strip_prefix("pub fn ")
                         .and_then(|s| s.split('(').next())
                         .unwrap_or("unknown")
                         .trim();
 
                     let instruction_name = fn_name.to_string();
-                    
+
                     // Analyze the function body for security checks
                     let rest = &content.lines().skip(line_no).collect::<Vec<_>>().join("\n");
                     let body = extract_function_body(rest);
-                    
+
                     let has_signer = body.as_ref().map(|b| {
-                        b.contains("is_signer") || 
-                        b.contains("Signer<") ||
-                        b.contains("has_one") ||
-                        b.contains("constraint = signer")
+                        b.contains("is_signer")
+                            || b.contains("Signer<")
+                            || b.contains("has_one")
+                            || b.contains("constraint = signer")
                     });
-                    
+
                     let has_owner = body.as_ref().map(|b| {
-                        b.contains("owner") ||
-                        b.contains("token::authority") ||
-                        b.contains("constraint = owner")
+                        b.contains("owner")
+                            || b.contains("token::authority")
+                            || b.contains("constraint = owner")
                     });
-                    
+
                     let has_cpi_check = body.as_ref().map_or(false, |b| {
-                        b.contains("program_id") ||
-                        b.contains("key() !=") ||
-                        b.contains("expected_program")
+                        b.contains("program_id")
+                            || b.contains("key() !=")
+                            || b.contains("expected_program")
                     });
-                    
+
                     let uses_cpi = body.as_ref().map_or(false, |b| {
-                        b.contains("invoke(") ||
-                        b.contains("invoke_signed(") ||
-                        b.contains("CpiContext")
+                        b.contains("invoke(")
+                            || b.contains("invoke_signed(")
+                            || b.contains("CpiContext")
                     });
-                    
+
                     let has_arithmetic = body.as_ref().map_or(false, |b| {
-                        b.contains(".checked_add(") ||
-                        b.contains(".checked_sub(") ||
-                        b.contains(".checked_mul(") ||
-                        b.contains(".checked_div(") ||
-                        b.contains(" += ") ||
-                        b.contains(" -= ") ||
-                        b.contains(" *= ") ||
-                        b.contains(" /= ")
+                        b.contains(".checked_add(")
+                            || b.contains(".checked_sub(")
+                            || b.contains(".checked_mul(")
+                            || b.contains(".checked_div(")
+                            || b.contains(" += ")
+                            || b.contains(" -= ")
+                            || b.contains(" *= ")
+                            || b.contains(" /= ")
                     });
 
                     let effects = extract_account_effects(body.as_deref());
@@ -203,30 +211,38 @@ impl MapperAgent {
                 // Detect account structs (#[derive(Accounts)])
                 if line.contains("#[derive(Accounts)") || line.contains("#[derive(Accounts<") {
                     // Look for struct definition on next non-blank line
-                    let struct_line = content.lines().skip(line_no + 1).find(|l| !l.trim().is_empty());
+                    let struct_line = content
+                        .lines()
+                        .skip(line_no + 1)
+                        .find(|l| !l.trim().is_empty());
                     if let Some(sline) = struct_line {
                         if sline.trim().starts_with("pub struct ") {
-                            let name = sline.trim()
+                            let name = sline
+                                .trim()
                                 .strip_prefix("pub struct ")
                                 .and_then(|s| s.split_whitespace().next())
                                 .unwrap_or("UnknownAccounts")
                                 .trim_end_matches("<'info>")
                                 .to_string();
-                            
+
                             // Find the struct body
-                            let rest = &content.lines().skip(line_no + 1).collect::<Vec<_>>().join("\n");
+                            let rest = &content
+                                .lines()
+                                .skip(line_no + 1)
+                                .collect::<Vec<_>>()
+                                .join("\n");
                             let struct_body = extract_struct_body(rest);
-                            
+
                             let is_initialized = struct_body.as_ref().map(|b| {
-                                b.contains("init") || 
-                                b.contains("init_if_needed") ||
-                                b.contains("has_one") ||
-                                b.contains("constraint =")
+                                b.contains("init")
+                                    || b.contains("init_if_needed")
+                                    || b.contains("has_one")
+                                    || b.contains("constraint =")
                             });
-                            
-                            let has_close = struct_body.as_ref().map(|b| {
-                                b.contains("close=") || b.contains("close =")
-                            });
+
+                            let has_close = struct_body
+                                .as_ref()
+                                .map(|b| b.contains("close=") || b.contains("close ="));
 
                             // Detect PDA seeds in the account struct
                             let seeds: Option<Vec<String>> = struct_body.as_ref().and_then(|b| {
@@ -242,17 +258,21 @@ impl MapperAgent {
                                         }
                                     }
                                 }
-                                if found_seeds.is_empty() { None } else { Some(found_seeds) }
+                                if found_seeds.is_empty() {
+                                    None
+                                } else {
+                                    Some(found_seeds)
+                                }
                             });
-                            
+
                             let is_signer = struct_body.as_ref().map_or(false, |b| {
                                 b.contains("Signer<") || b.contains("signer: Signer")
                             });
-                            
+
                             let is_mutable = struct_body.as_ref().map_or(false, |b| {
                                 b.contains("mut,") || b.contains("mut]") || b.contains("mut)")
                             });
-                            
+
                             graph.accounts.push(AccountNode {
                                 name,
                                 is_signer,
@@ -268,7 +288,10 @@ impl MapperAgent {
                 }
 
                 // Detect CPI calls
-                if line.contains("invoke(") || line.contains("invoke_signed(") || line.contains("CpiContext") {
+                if line.contains("invoke(")
+                    || line.contains("invoke_signed(")
+                    || line.contains("CpiContext")
+                {
                     let target = if line.contains("token::") {
                         "token_program"
                     } else if line.contains("system_program") {
@@ -276,7 +299,7 @@ impl MapperAgent {
                     } else {
                         "unknown_program"
                     };
-                    
+
                     graph.cpi_calls.push(CpiCall {
                         target_program: target.to_string(),
                         instruction: "transfer".to_string(), // simplified
@@ -345,8 +368,12 @@ impl MapperAgent {
             }
         }
 
-        let is_anchor_heavy = anchor_field_count > 5 && typed_anchor_fields > (anchor_field_count / 2);
-        let cpi_all_validated = graph.cpi_calls.iter().all(|c| c.target_program != "unknown_program");
+        let is_anchor_heavy =
+            anchor_field_count > 5 && typed_anchor_fields > (anchor_field_count / 2);
+        let cpi_all_validated = graph
+            .cpi_calls
+            .iter()
+            .all(|c| c.target_program != "unknown_program");
 
         graph.source_patterns = SourcePatterns {
             is_anchor_heavy,
@@ -378,7 +405,7 @@ fn extract_function_body(text: &str) -> Option<String> {
     let mut depth = 0i32;
     let mut started = false;
     let mut body = String::new();
-    
+
     for ch in text.chars() {
         if ch == '{' {
             started = true;
@@ -394,8 +421,12 @@ fn extract_function_body(text: &str) -> Option<String> {
             }
         }
     }
-    
-    if body.is_empty() { None } else { Some(body) }
+
+    if body.is_empty() {
+        None
+    } else {
+        Some(body)
+    }
 }
 
 /// Extract struct body from text starting at struct declaration.
@@ -413,13 +444,16 @@ fn extract_account_effects(body: Option<&str>) -> Vec<(String, AccountEffect)> {
     };
 
     let mut effects = Vec::new();
-    let mut seen: std::collections::HashSet<(String, AccountEffect)> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<(String, AccountEffect)> =
+        std::collections::HashSet::new();
 
     // Regex-like scan: find `ctx.accounts.<ident>` tokens
     let mut remaining = body;
     while let Some(start) = remaining.find("ctx.accounts.") {
         let after = &remaining[start + "ctx.accounts.".len()..];
-        let ident_end = after.find(|c: char| !c.is_alphanumeric() && c != '_').unwrap_or(after.len());
+        let ident_end = after
+            .find(|c: char| !c.is_alphanumeric() && c != '_')
+            .unwrap_or(after.len());
         let account = &after[..ident_end];
         if account.is_empty() {
             remaining = after;
@@ -437,7 +471,10 @@ fn extract_account_effects(body: Option<&str>) -> Vec<(String, AccountEffect)> {
             || context.contains(" -= ")
         {
             AccountEffect::Write
-        } else if context.contains("invoke(") || context.contains("invoke_signed(") || context.contains("CpiContext") {
+        } else if context.contains("invoke(")
+            || context.contains("invoke_signed(")
+            || context.contains("CpiContext")
+        {
             AccountEffect::CpiPass
         } else {
             AccountEffect::Read
@@ -454,11 +491,11 @@ fn extract_account_effects(body: Option<&str>) -> Vec<(String, AccountEffect)> {
     effects
 }
 
-pub mod cross_analysis;
 pub mod ast_scanner;
-pub mod taint_engine;
-pub mod source_patterns;
+pub mod cross_analysis;
 pub mod local_judge;
+pub mod source_patterns;
+pub mod taint_engine;
 
 #[cfg(test)]
 mod tests {
@@ -504,12 +541,14 @@ mod tests {
 
     #[test]
     fn test_extract_account_effects_handles_ctx_accounts() {
-        let body = Some(r#"
+        let body = Some(
+            r#"
             let foo = &ctx.accounts.foo;
             let bar = &mut ctx.accounts.bar;
             msg!("hello");
             ctx.accounts.baz.load_mut()?;
-        "#);
+        "#,
+        );
         let effects = extract_account_effects(body);
         assert!(!effects.is_empty(), "Should detect at least one effect");
         // foo is read-only (no mut)
@@ -542,7 +581,8 @@ mod tests {
 
     #[test]
     fn test_extract_account_effects_cpi_signed() {
-        let effects = extract_account_effects(Some("ctx.accounts.router.invoke_signed(ix, &[seeds])?;"));
+        let effects =
+            extract_account_effects(Some("ctx.accounts.router.invoke_signed(ix, &[seeds])?;"));
         assert!(effects.contains(&("router".to_string(), AccountEffect::CpiPass)));
     }
 
@@ -550,7 +590,10 @@ mod tests {
     fn test_extract_function_body_simple() {
         let text = "fn foo() {\n    let x = 1;\n}";
         let body = extract_function_body(text);
-        assert!(body.is_some(), "Should extract body from multi-line function");
+        assert!(
+            body.is_some(),
+            "Should extract body from multi-line function"
+        );
     }
 
     #[test]

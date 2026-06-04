@@ -20,10 +20,10 @@ pub struct SourcePatterns {
     pub write_accounts: HashSet<String>,
     /// Set of accounts that are passed to CPI
     pub cpi_accounts: HashSet<String>,
-    /// Extended v29 heuristic: true if the program has > 1000 instructions/functions 
+    /// Extended v29 heuristic: true if the program has > 1000 instructions/functions
     /// (proxy for a very large DEX like Mango or Drift)
     pub is_large_dex: bool,
-    /// Extended v29 heuristic: true if the program mixes raw Rust and Anchor heavily, 
+    /// Extended v29 heuristic: true if the program mixes raw Rust and Anchor heavily,
     /// meaning we shouldn't suppress as aggressively as pure Anchor
     pub is_mixed_architecture: bool,
 }

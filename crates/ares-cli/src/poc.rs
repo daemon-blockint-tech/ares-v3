@@ -12,17 +12,17 @@ impl PocGenerator {
         let id = &finding.id;
 
         match &finding.category {
-            VulnerabilityCategory::SignerAuthorization => Self::generate_signer_poc(id, program_name),
+            VulnerabilityCategory::SignerAuthorization => {
+                Self::generate_signer_poc(id, program_name)
+            }
             VulnerabilityCategory::OwnershipCheck => Self::generate_owner_poc(id, program_name),
             VulnerabilityCategory::ArbitraryCpi => Self::generate_cpi_poc(id, program_name),
             VulnerabilityCategory::InitializationFrontrunning
-            | VulnerabilityCategory::ReInitialization => {
-                Self::generate_init_poc(id, program_name)
+            | VulnerabilityCategory::ReInitialization => Self::generate_init_poc(id, program_name),
+            VulnerabilityCategory::AccountReloading | VulnerabilityCategory::RevivalAttack => {
+                Self::generate_revival_poc(id, program_name)
             }
-            VulnerabilityCategory::AccountReloading
-            | VulnerabilityCategory::RevivalAttack => Self::generate_revival_poc(id, program_name),
-            VulnerabilityCategory::FuzzingCrash
-            | VulnerabilityCategory::InvariantViolation => {
+            VulnerabilityCategory::FuzzingCrash | VulnerabilityCategory::InvariantViolation => {
                 Self::generate_invariant_poc(id, program_name, finding)
             }
             _ => Self::generate_generic_poc(id, program_name),
@@ -85,7 +85,11 @@ async fn {}() {{
     }
 
     fn generate_signer_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, &VulnerabilityCategory::SignerAuthorization);
+        let mut s = Self::header(
+            id,
+            program_name,
+            &VulnerabilityCategory::SignerAuthorization,
+        );
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_missing_signer", sanitize_id(id)),
@@ -194,7 +198,11 @@ async fn {}() {{
     }
 
     fn generate_init_poc(id: &str, program_name: &str) -> String {
-        let mut s = Self::header(id, program_name, &VulnerabilityCategory::InitializationFrontrunning);
+        let mut s = Self::header(
+            id,
+            program_name,
+            &VulnerabilityCategory::InitializationFrontrunning,
+        );
         s.push_str(Self::imports());
         s.push_str(&Self::test_boilerplate(
             &format!("test_{}_double_init", sanitize_id(id)),

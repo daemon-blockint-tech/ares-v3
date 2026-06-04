@@ -1,9 +1,9 @@
+use crate::agent::{AgentEvent, AgentOrchestrator};
 use ares_core::AresConfig;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use tui_textarea::TextArea;
-use tokio::sync::{mpsc, oneshot};
-use crate::agent::{AgentEvent, AgentOrchestrator};
 use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
+use tui_textarea::TextArea;
 
 #[derive(Clone)]
 pub enum UiMessage {
@@ -42,43 +42,47 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn flush_response(&mut self) {
-        if self.current_response.is_empty() { return; }
-        
+        if self.current_response.is_empty() {
+            return;
+        }
+
         let text = self.current_response.clone();
         let mut current_idx = 0;
-        
+
         while let Some(start) = text[current_idx..].find("<thinking>") {
             let abs_start = current_idx + start;
-            
+
             let before = text[current_idx..abs_start].trim();
             if !before.is_empty() {
                 self.messages.push(UiMessage::Agent(before.to_string()));
             }
-            
+
             if let Some(end) = text[abs_start..].find("</thinking>") {
                 let abs_end = abs_start + end;
                 let thinking = text[abs_start + 10..abs_end].trim();
                 if !thinking.is_empty() {
-                    self.messages.push(UiMessage::Thinking(thinking.to_string()));
+                    self.messages
+                        .push(UiMessage::Thinking(thinking.to_string()));
                 }
                 current_idx = abs_end + 11;
             } else {
                 let thinking = text[abs_start + 10..].trim();
                 if !thinking.is_empty() {
-                    self.messages.push(UiMessage::Thinking(thinking.to_string()));
+                    self.messages
+                        .push(UiMessage::Thinking(thinking.to_string()));
                 }
                 current_idx = text.len();
                 break;
             }
         }
-        
+
         if current_idx < text.len() {
             let rest = text[current_idx..].trim();
             if !rest.is_empty() {
                 self.messages.push(UiMessage::Agent(rest.to_string()));
             }
         }
-        
+
         self.current_response.clear();
     }
 
@@ -166,12 +170,16 @@ impl<'a> App<'a> {
                 return true;
             }
             (KeyCode::PageUp, _) => {
-                let current = self.scroll_position.unwrap_or(self.total_lines.saturating_sub(1));
+                let current = self
+                    .scroll_position
+                    .unwrap_or(self.total_lines.saturating_sub(1));
                 self.scroll_position = Some(current.saturating_sub(15));
                 false
             }
             (KeyCode::PageDown, _) => {
-                let current = self.scroll_position.unwrap_or(self.total_lines.saturating_sub(1));
+                let current = self
+                    .scroll_position
+                    .unwrap_or(self.total_lines.saturating_sub(1));
                 let next = current.saturating_add(15);
                 if next >= self.total_lines.saturating_sub(1) {
                     self.scroll_position = None; // snap to bottom
@@ -181,12 +189,16 @@ impl<'a> App<'a> {
                 false
             }
             (KeyCode::Up, KeyModifiers::CONTROL) => {
-                let current = self.scroll_position.unwrap_or(self.total_lines.saturating_sub(1));
+                let current = self
+                    .scroll_position
+                    .unwrap_or(self.total_lines.saturating_sub(1));
                 self.scroll_position = Some(current.saturating_sub(3));
                 false
             }
             (KeyCode::Down, KeyModifiers::CONTROL) => {
-                let current = self.scroll_position.unwrap_or(self.total_lines.saturating_sub(1));
+                let current = self
+                    .scroll_position
+                    .unwrap_or(self.total_lines.saturating_sub(1));
                 let next = current.saturating_add(3);
                 if next >= self.total_lines.saturating_sub(1) {
                     self.scroll_position = None; // snap to bottom
@@ -202,7 +214,7 @@ impl<'a> App<'a> {
                     self.messages.push(UiMessage::User(input.clone()));
                     self.is_loading = true;
                     self.scroll_position = None; // snap to bottom on send
-                    
+
                     // Send to agent
                     let _ = self.agent_tx.try_send(input);
 
@@ -227,21 +239,33 @@ impl<'a> App<'a> {
                 AgentEvent::Token(t) => {
                     self.current_response.push_str(&t);
                 }
-                AgentEvent::RequiresApproval { name, args, approval_tx } => {
+                AgentEvent::RequiresApproval {
+                    name,
+                    args,
+                    approval_tx,
+                } => {
                     self.flush_response();
-                    self.telemetry_logs.push(format!("[IronCurtain] Intercepted: {} args: {}", name, args));
+                    self.telemetry_logs.push(format!(
+                        "[IronCurtain] Intercepted: {} args: {}",
+                        name, args
+                    ));
                     self.state = AppState::IronCurtainModal;
                     self.pending_approval = Some(approval_tx);
                     self.is_loading = false; // Pause loading while waiting for user
                 }
                 AgentEvent::ToolCall { name, args } => {
                     self.flush_response();
-                    self.telemetry_logs.push(format!("[Tool] Running {} with args: {}", name, args));
+                    self.telemetry_logs
+                        .push(format!("[Tool] Running {} with args: {}", name, args));
                     self.is_loading = true;
                 }
                 AgentEvent::ToolResult { name, args, result } => {
-                    self.telemetry_logs.push(format!("[Tool] {} returned ({} bytes)", name, result.len()));
-                    
+                    self.telemetry_logs.push(format!(
+                        "[Tool] {} returned ({} bytes)",
+                        name,
+                        result.len()
+                    ));
+
                     if name == "read_file" {
                         let path = args["path"].as_str().unwrap_or("Unknown File");
                         self.current_context_title = format!(" {} ", path);
@@ -254,7 +278,8 @@ impl<'a> App<'a> {
                 }
                 AgentEvent::Error(err) => {
                     self.flush_response();
-                    self.messages.push(UiMessage::System(format!("[ERROR] {}", err)));
+                    self.messages
+                        .push(UiMessage::System(format!("[ERROR] {}", err)));
                     self.is_loading = false;
                 }
                 AgentEvent::Done => {

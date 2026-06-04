@@ -5,44 +5,76 @@ pub fn generate_markdown(report: &AuditReport) -> String {
     let mut md = String::from("# ARES V3 Security Audit Report\n\n");
     md.push_str(&format!("**Target:** `{}`\n\n", report.target.name));
     md.push_str(&format!("**Date:** {}\n\n", report.metadata.generated_at));
-    md.push_str(&format!("**ARES Version:** {}\n\n", report.metadata.ares_version));
-    md.push_str(&format!("**Duration:** {} seconds\n\n", report.metadata.scan_duration_secs));
-    md.push_str(&format!("**Pipeline:** {}\n\n", report.metadata.agent_pipeline.join(" -> ")));
+    md.push_str(&format!(
+        "**ARES Version:** {}\n\n",
+        report.metadata.ares_version
+    ));
+    md.push_str(&format!(
+        "**Duration:** {} seconds\n\n",
+        report.metadata.scan_duration_secs
+    ));
+    md.push_str(&format!(
+        "**Pipeline:** {}\n\n",
+        report.metadata.agent_pipeline.join(" -> ")
+    ));
 
     md.push_str("## Summary\n\n");
     md.push_str("| Severity | Count |\n");
     md.push_str("|----------|-------|\n");
-    md.push_str(&format!("| Critical | {} |\n", report.summary.critical_count));
+    md.push_str(&format!(
+        "| Critical | {} |\n",
+        report.summary.critical_count
+    ));
     md.push_str(&format!("| High     | {} |\n", report.summary.high_count));
     md.push_str(&format!("| Medium   | {} |\n", report.summary.medium_count));
     md.push_str(&format!("| Low      | {} |\n", report.summary.low_count));
-    md.push_str(&format!("| Info     | {} |\n\n", report.summary.informational_count));
+    md.push_str(&format!(
+        "| Info     | {} |\n\n",
+        report.summary.informational_count
+    ));
 
     let total_sol = report.summary.total_economic_impact_lamports as f64 / 1_000_000_000.0;
     let max_sol = report.summary.max_single_exploit_lamports as f64 / 1_000_000_000.0;
     md.push_str("## Economic Impact Estimate\n\n");
     md.push_str("| Metric | Value |\n");
     md.push_str("|--------|-------|\n");
-    md.push_str(&format!("| Total Extractable Value | {:.4} SOL |\n", total_sol));
+    md.push_str(&format!(
+        "| Total Extractable Value | {:.4} SOL |\n",
+        total_sol
+    ));
     md.push_str(&format!("| Max Single Exploit | {:.4} SOL |\n\n", max_sol));
 
     md.push_str("## Findings\n\n");
 
     for (i, finding) in report.findings.iter().enumerate() {
-        md.push_str(&format!("### {}. {} [{}]\n\n", i + 1, finding.title, finding.severity));
+        md.push_str(&format!(
+            "### {}. {} [{}]\n\n",
+            i + 1,
+            finding.title,
+            finding.severity
+        ));
         md.push_str(&format!("**ID:** `{}`\n\n", finding.id));
         md.push_str(&format!("**Category:** {}\n\n", finding.category));
-        md.push_str(&format!("**Confidence:** {:.0}%\n\n", finding.confidence * 100.0));
+        md.push_str(&format!(
+            "**Confidence:** {:.0}%\n\n",
+            finding.confidence * 100.0
+        ));
         let exploit_lamports = estimate_exploit_value(finding);
         let exploit_sol = exploit_lamports as f64 / 1_000_000_000.0;
-        md.push_str(&format!("**Estimated Extractable Value:** {:.4} SOL\n\n", exploit_sol));
+        md.push_str(&format!(
+            "**Estimated Extractable Value:** {:.4} SOL\n\n",
+            exploit_sol
+        ));
         md.push_str(&format!("**Description:**\n{}\n\n", finding.description));
 
         if let Some(ref poc) = finding.proof_of_concept {
             md.push_str(&format!("**Proof of Concept:** `{:?}`\n\n", poc));
         }
 
-        md.push_str(&format!("**Recommendation:**\n{}\n\n", finding.recommendation));
+        md.push_str(&format!(
+            "**Recommendation:**\n{}\n\n",
+            finding.recommendation
+        ));
 
         if !finding.references.is_empty() {
             md.push_str("**References:**\n");
@@ -114,10 +146,16 @@ pub fn generate_html(report: &AuditReport) -> String {
 
 /// Generate a GitHub issue template from an audit report.
 pub fn generate_github_issue(report: &AuditReport) -> String {
-    let mut issue = format!("## Security Audit Findings for `{}`\n\n", report.target.name);
+    let mut issue = format!(
+        "## Security Audit Findings for `{}`\n\n",
+        report.target.name
+    );
 
     issue.push_str("### Summary\n\n");
-    issue.push_str(&format!("- **Critical:** {}\n", report.summary.critical_count));
+    issue.push_str(&format!(
+        "- **Critical:** {}\n",
+        report.summary.critical_count
+    ));
     issue.push_str(&format!("- **High:** {}\n", report.summary.high_count));
     issue.push_str(&format!("- **Medium:** {}\n", report.summary.medium_count));
     issue.push_str(&format!("- **Low:** {}\n\n", report.summary.low_count));
@@ -128,9 +166,15 @@ pub fn generate_github_issue(report: &AuditReport) -> String {
         issue.push_str(&format!("#### `{}` — {}\n\n", finding.id, finding.title));
         issue.push_str(&format!("- **Severity:** {}\n", finding.severity));
         issue.push_str(&format!("- **Category:** {}\n", finding.category));
-        issue.push_str(&format!("- **Confidence:** {:.0}%\n", finding.confidence * 100.0));
+        issue.push_str(&format!(
+            "- **Confidence:** {:.0}%\n",
+            finding.confidence * 100.0
+        ));
         issue.push_str(&format!("\n{}", finding.description));
-        issue.push_str(&format!("\n\n**Recommendation:** {}\n\n", finding.recommendation));
+        issue.push_str(&format!(
+            "\n\n**Recommendation:** {}\n\n",
+            finding.recommendation
+        ));
         if let Some(ref poc) = finding.proof_of_concept {
             issue.push_str(&format!("**PoC:** `{:?}`\n\n", poc));
         }
@@ -138,10 +182,22 @@ pub fn generate_github_issue(report: &AuditReport) -> String {
     }
 
     issue.push_str("### Environment\n\n");
-    issue.push_str(&format!("- **ARES Version:** {}\n", report.metadata.ares_version));
-    issue.push_str(&format!("- **Scan Date:** {}\n", report.metadata.generated_at));
-    issue.push_str(&format!("- **Pipeline:** {}\n", report.metadata.agent_pipeline.join(", ")));
-    issue.push_str(&format!("- **Tools:** {}\n", report.metadata.tools_used.join(", ")));
+    issue.push_str(&format!(
+        "- **ARES Version:** {}\n",
+        report.metadata.ares_version
+    ));
+    issue.push_str(&format!(
+        "- **Scan Date:** {}\n",
+        report.metadata.generated_at
+    ));
+    issue.push_str(&format!(
+        "- **Pipeline:** {}\n",
+        report.metadata.agent_pipeline.join(", ")
+    ));
+    issue.push_str(&format!(
+        "- **Tools:** {}\n",
+        report.metadata.tools_used.join(", ")
+    ));
     issue.push_str("\n---\n\n*Reported by ARES V3 Autonomous Security Auditor*\n");
 
     issue

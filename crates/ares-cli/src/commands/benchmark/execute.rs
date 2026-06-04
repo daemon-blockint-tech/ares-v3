@@ -1,13 +1,13 @@
+use ares_core::{AresResult, BenchmarkResult};
+use ares_mapper::MapperAgent;
 use std::collections::HashSet;
 use std::path::Path;
 use std::time::Instant;
-use ares_core::{AresResult, BenchmarkResult};
-use ares_mapper::MapperAgent;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
+use super::categories::collect_detected_categories;
 use super::ground_truth::{GroundTruthEntry, GroundTruthFile};
 use super::patterns::scan_source_patterns;
-use super::categories::collect_detected_categories;
 use super::report::generate_trident_arena_comparison_md;
 
 /// Run benchmark suite against known protocols or attack vector harnesses.
@@ -20,7 +20,10 @@ pub async fn execute(
     output: &Path,
 ) -> AresResult<()> {
     info!("ARES Benchmark Suite (Ground-Truth Edition)");
-    info!("Dataset: {:?} | Protocol: {:?} | Compare Baseline: {}", dataset, protocol, compare_baseline);
+    info!(
+        "Dataset: {:?} | Protocol: {:?} | Compare Baseline: {}",
+        dataset, protocol, compare_baseline
+    );
 
     let harness_dir = dataset.join("solana-common-attack-vectors");
     let mut results: Vec<BenchmarkResult> = Vec::new();
@@ -29,12 +32,16 @@ pub async fn execute(
     let ground_truth_path = harness_dir.join("ground_truth.json");
     let ground_truth = if ground_truth_path.exists() {
         let gt_content = tokio::fs::read_to_string(&ground_truth_path).await?;
-        let gt: GroundTruthFile = serde_json::from_str(&gt_content)
-            .map_err(|e| ares_core::AresError::Parse(format!("Invalid ground truth JSON: {}", e)))?;
+        let gt: GroundTruthFile = serde_json::from_str(&gt_content).map_err(|e| {
+            ares_core::AresError::Parse(format!("Invalid ground truth JSON: {}", e))
+        })?;
         info!("Loaded ground truth for {} protocols", gt.protocols.len());
         Some(gt)
     } else {
-        warn!("Ground truth not found at {:?}; precision/recall will be unavailable.", ground_truth_path);
+        warn!(
+            "Ground truth not found at {:?}; precision/recall will be unavailable.",
+            ground_truth_path
+        );
         None
     };
 
@@ -63,7 +70,8 @@ pub async fn execute(
         proto_list
     };
 
-    info!("Benchmarking {} protocols ({} stubs + {} real repos)",
+    info!(
+        "Benchmarking {} protocols ({} stubs + {} real repos)",
         protocols.len(),
         protocols.iter().filter(|p| p.source == "stub").count(),
         protocols.iter().filter(|p| p.source == "real").count()
@@ -94,7 +102,10 @@ pub async fn execute(
             continue;
         }
 
-        info!("Benchmarking {} ({}): {:?}", entry.name, entry.source, scan_path);
+        info!(
+            "Benchmarking {} ({}): {:?}",
+            entry.name, entry.source, scan_path
+        );
         let start = Instant::now();
 
         // Real static analysis via MapperAgent
@@ -109,7 +120,8 @@ pub async fn execute(
 
         // Phase-2: AST-based deep analysis (macro-expanded, call-graph-aware)
         let ast_scanner = ares_mapper::ast_scanner::scan_directory_ast(&scan_path);
-        let ast_categories = ares_mapper::ast_scanner::ast_categories_to_benchmark(&ast_scanner.findings);
+        let ast_categories =
+            ares_mapper::ast_scanner::ast_categories_to_benchmark(&ast_scanner.findings);
 
         let mut detected_categories = collect_detected_categories(&graph, &ast_scanner);
 
@@ -137,14 +149,23 @@ pub async fn execute(
         {
             let sp2 = scan_source_patterns(&graph);
             let instr_count = graph.instructions.len();
-            let anchor_field_count2: usize = ast_scanner.anchor_accounts.iter().map(|a| a.fields.len()).sum();
-            let typed_anchor_fields2: usize = ast_scanner.anchor_accounts.iter().flat_map(|a| &a.fields)
+            let anchor_field_count2: usize = ast_scanner
+                .anchor_accounts
+                .iter()
+                .map(|a| a.fields.len())
+                .sum();
+            let typed_anchor_fields2: usize = ast_scanner
+                .anchor_accounts
+                .iter()
+                .flat_map(|a| &a.fields)
                 .filter(|f| !f.ty.contains("AccountInfo") && !f.ty.contains("UncheckedAccount"))
                 .count();
-            let is_anchor_heavy2 = anchor_field_count2 > 5 && typed_anchor_fields2 > anchor_field_count2 / 2;
+            let is_anchor_heavy2 =
+                anchor_field_count2 > 5 && typed_anchor_fields2 > anchor_field_count2 / 2;
             // Rule 5 post-merge: LayerZero OApp arbitrary-cpi suppression.
             if detected_categories.contains(&"arbitrary-cpi".to_string())
-                && sp2.has_hardcoded_endpoint_id && sp2.has_typed_program_field
+                && sp2.has_hardcoded_endpoint_id
+                && sp2.has_typed_program_field
             {
                 detected_categories.retain(|c| c != "arbitrary-cpi");
             }
@@ -161,7 +182,10 @@ pub async fn execute(
             if detected_categories.contains(&"arbitrary-cpi".to_string())
                 && sp2.has_raw_rust_unchecked_calls
                 && !is_anchor_heavy2
-                && ast_scanner.instruction_handlers.iter().any(|h| h.is_entry_point && h.has_program_id_check)
+                && ast_scanner
+                    .instruction_handlers
+                    .iter()
+                    .any(|h| h.is_entry_point && h.has_program_id_check)
             {
                 detected_categories.retain(|c| c != "arbitrary-cpi");
             }
@@ -184,7 +208,8 @@ pub async fn execute(
             // (Note: internal Rule 17 should already suppress Dexalot's missing-signer;
             // this post-merge block is a safety net in case AST scanner re-adds it.)
             let has_swap_instruction2 = graph.instructions.iter().any(|i| {
-                i.name.to_lowercase().contains("swap") || i.name.to_lowercase().contains("trade")
+                i.name.to_lowercase().contains("swap")
+                    || i.name.to_lowercase().contains("trade")
                     || i.name.to_lowercase().contains("exchange")
             });
             if detected_categories.contains(&"missing-signer".to_string())
@@ -193,7 +218,8 @@ pub async fn execute(
                 && instr_count > 50
                 && !sp2.has_check_on_seeded_no_has_one
                 && (is_anchor_heavy2 || sp2.has_hardcoded_endpoint_id)
-                && sp2.has_hardcoded_endpoint_id // extra safety: only for LayerZero OApp (Dexalot); MetaDAO has no ENDPOINT_ID
+                && sp2.has_hardcoded_endpoint_id
+            // extra safety: only for LayerZero OApp (Dexalot); MetaDAO has no ENDPOINT_ID
             {
                 detected_categories.retain(|c| c != "missing-signer");
             }
@@ -225,23 +251,34 @@ pub async fn execute(
             // Gate: instr_count > 10 excludes minimal vulnerability stubs where non-mutable
             // AccountInfo IS the vulnerability (e.g. ownership-check stub reads .data.borrow()
             // through non-mutable AccountInfo, bypassing Anchor type validation).
-            let unchecked_mut_fields: usize = ast_scanner.anchor_accounts.iter()
+            let unchecked_mut_fields: usize = ast_scanner
+                .anchor_accounts
+                .iter()
                 .flat_map(|a| &a.fields)
                 .filter(|f| (f.is_unchecked_account || f.ty.contains("AccountInfo")) && f.is_mut)
                 .count();
-            let unchecked_total: usize = ast_scanner.anchor_accounts.iter()
+            let unchecked_total: usize = ast_scanner
+                .anchor_accounts
+                .iter()
                 .flat_map(|a| &a.fields)
                 .filter(|f| f.is_unchecked_account || f.ty.contains("AccountInfo"))
                 .count();
-            if is_anchor_heavy2 && unchecked_total > 0 && unchecked_mut_fields == 0 && instr_count > 10 {
+            if is_anchor_heavy2
+                && unchecked_total > 0
+                && unchecked_mut_fields == 0
+                && instr_count > 10
+            {
                 detected_categories.retain(|c| c != "ownership-check");
                 detected_categories.retain(|c| c != "account-data-matching");
                 detected_categories.retain(|c| c != "duplicate-mutable-accounts");
             }
             let has_governance_instructions = graph.instructions.iter().any(|i| {
                 let n = i.name.to_lowercase();
-                n.contains("proposal") || n.contains("finalize") || n.contains("vote")
-                    || n.contains("dao") || n.contains("futarch")
+                n.contains("proposal")
+                    || n.contains("finalize")
+                    || n.contains("vote")
+                    || n.contains("dao")
+                    || n.contains("futarch")
             });
             let is_large_governance = instr_count > 200
                 && is_anchor_heavy2
@@ -254,9 +291,15 @@ pub async fn execute(
             // they're CPI targets to known programs (token, system), not unvalidated accounts.
             let has_dex_instructions = graph.instructions.iter().any(|i| {
                 let n = i.name.to_lowercase();
-                n.contains("swap") || n.contains("trade") || n.contains("deposit")
-                    || n.contains("withdraw") || n.contains("borrow") || n.contains("liquidat")
-                    || n.contains("fill_order") || n.contains("place_order") || n.contains("perp")
+                n.contains("swap")
+                    || n.contains("trade")
+                    || n.contains("deposit")
+                    || n.contains("withdraw")
+                    || n.contains("borrow")
+                    || n.contains("liquidat")
+                    || n.contains("fill_order")
+                    || n.contains("place_order")
+                    || n.contains("perp")
             });
             let is_large_dex = instr_count > 1000
                 && is_anchor_heavy2
@@ -341,7 +384,9 @@ pub async fn execute(
             // Gate: owner_from_token_no_auth must NOT have fired (that signal catches genuinely
             // unlinked TokenAccount fields). Also: no raw handler (all instructions are Anchor-typed).
             let has_raw_handler2 = ast_scanner.instruction_handlers.iter().any(|h| {
-                h.params.iter().any(|p| p.is_account_info && !h.has_signer_check)
+                h.params
+                    .iter()
+                    .any(|p| p.is_account_info && !h.has_signer_check)
             });
             let owner_from_raw_financial2 = sp2.has_account_info_unchecked
                 && has_raw_handler2
@@ -409,7 +454,11 @@ pub async fn execute(
             false_positives: fp_count,
             false_negatives: fn_count,
             known_audit_recall,
-            fp_rate: if detected_set.len() > 0 { fp_count as f64 / detected_set.len() as f64 } else { 0.0 },
+            fp_rate: if detected_set.len() > 0 {
+                fp_count as f64 / detected_set.len() as f64
+            } else {
+                0.0
+            },
             poc_success_rate: 0.0,
             execution_time_secs: elapsed,
             economic_score_lamports: economic_score,
@@ -465,7 +514,11 @@ pub async fn execute(
 
     // Phase 4: Economic aggregate
     let total_economic: u64 = results.iter().map(|r| r.economic_score_lamports).sum();
-    let max_economic = results.iter().map(|r| r.economic_score_lamports).max().unwrap_or(0);
+    let max_economic = results
+        .iter()
+        .map(|r| r.economic_score_lamports)
+        .max()
+        .unwrap_or(0);
 
     let report = serde_json::json!({
         "benchmark_version": "3.0-honest",
@@ -504,10 +557,21 @@ pub async fn execute(
         info!("=========================================");
         info!("Trident Arena baseline: 21/30 (70%) critical/high detection, 26.56% FP");
         info!("ARES real benchmark: {} protocols tested", total_tested);
-        info!("Known Audit Recall: {:.1}% | Precision: {:.2} | Recall: {:.2} | F1: {:.2}",
-            avg_known_audit_recall * 100.0, avg_precision, avg_recall, avg_f1);
-        info!("Avg findings per protocol: {:.1} (require manual triage)", avg_findings_per_protocol);
-        info!("Total Economic Score: {:.4} SOL", total_economic as f64 / 1_000_000_000.0);
+        info!(
+            "Known Audit Recall: {:.1}% | Precision: {:.2} | Recall: {:.2} | F1: {:.2}",
+            avg_known_audit_recall * 100.0,
+            avg_precision,
+            avg_recall,
+            avg_f1
+        );
+        info!(
+            "Avg findings per protocol: {:.1} (require manual triage)",
+            avg_findings_per_protocol
+        );
+        info!(
+            "Total Economic Score: {:.4} SOL",
+            total_economic as f64 / 1_000_000_000.0
+        );
         info!("=========================================");
 
         // Phase 6: Generate Trident Arena head-to-head comparison markdown
@@ -531,7 +595,10 @@ pub fn estimate_economic_score(category: &str, detected: bool) -> u64 {
         "initialization-frontrunning" | "re-initialization" => 300_000_000,
         "revival-attack" | "account-reloading" => 200_000_000,
         "fuzzing-crash" | "invariant-violation" => 800_000_000,
-        "account-data-matching" | "type-cosplay" | "duplicate-mutable-accounts" | "pda-privileges" => 100_000_000,
+        "account-data-matching"
+        | "type-cosplay"
+        | "duplicate-mutable-accounts"
+        | "pda-privileges" => 100_000_000,
         _ => 50_000_000,
     }
 }

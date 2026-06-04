@@ -61,8 +61,7 @@ async fn test_llm_judge_disabled_passthrough() {
             "llm_used should be false when provider is Disabled"
         );
         assert_eq!(
-            result.finding.id,
-            findings[i].id,
+            result.finding.id, findings[i].id,
             "Finding ID should be preserved"
         );
     }
@@ -202,25 +201,48 @@ async fn test_llm_judge_budget_truncation() {
 #[test]
 fn test_llm_judge_prompt_specialization() {
     let categories = vec![
-        (ares_core::VulnerabilityCategory::SignerAuthorization, "signer checks"),
+        (
+            ares_core::VulnerabilityCategory::SignerAuthorization,
+            "signer checks",
+        ),
         (ares_core::VulnerabilityCategory::ArbitraryCpi, "CPI"),
-        (ares_core::VulnerabilityCategory::ReentrancyRisk, "reentrancy"),
-        (ares_core::VulnerabilityCategory::InitializationFrontrunning, "front-run"),
-        (ares_core::VulnerabilityCategory::AccountReloading, "tombstone"),
+        (
+            ares_core::VulnerabilityCategory::ReentrancyRisk,
+            "reentrancy",
+        ),
+        (
+            ares_core::VulnerabilityCategory::InitializationFrontrunning,
+            "front-run",
+        ),
+        (
+            ares_core::VulnerabilityCategory::AccountReloading,
+            "tombstone",
+        ),
         (ares_core::VulnerabilityCategory::AccountDataMatching, "CPI"),
-        (ares_core::VulnerabilityCategory::DuplicateMutableAccounts, "mutable"),
-        (ares_core::VulnerabilityCategory::TypeCosplay, "discriminator"),
+        (
+            ares_core::VulnerabilityCategory::DuplicateMutableAccounts,
+            "mutable",
+        ),
+        (
+            ares_core::VulnerabilityCategory::TypeCosplay,
+            "discriminator",
+        ),
         (ares_core::VulnerabilityCategory::PdaPrivileges, "PDA"),
         (ares_core::VulnerabilityCategory::OwnershipCheck, "owner"),
         (ares_core::VulnerabilityCategory::FuzzingCrash, "fuzzing"),
-        (ares_core::VulnerabilityCategory::InvariantViolation, "invariant"),
+        (
+            ares_core::VulnerabilityCategory::InvariantViolation,
+            "invariant",
+        ),
         (ares_core::VulnerabilityCategory::Generic, "general Solana"),
     ];
 
     for (category, expected_substring) in categories {
         let context = ares_v3::llm_judge::category_specific_context(&category);
         assert!(
-            context.to_lowercase().contains(&expected_substring.to_lowercase()),
+            context
+                .to_lowercase()
+                .contains(&expected_substring.to_lowercase()),
             "Prompt for category '{}' should contain '{}' (got: {})",
             category,
             expected_substring,
@@ -247,20 +269,18 @@ async fn test_llm_judge_enabled_stub() {
 
     let judge = ares_v3::llm_judge::LlmJudge::new(&graph, &config);
 
-    let findings = vec![
-        ares_core::Finding {
-            id: "TEST-003".to_string(),
-            title: "High-confidence finding".to_string(),
-            description: "Missing signer check".to_string(),
-            severity: ares_core::Severity::High,
-            category: ares_core::VulnerabilityCategory::SignerAuthorization,
-            location: ares_core::CodeLocation::default(),
-            proof_of_concept: None,
-            recommendation: "Add signer check".to_string(),
-            references: vec![],
-            confidence: 0.90,
-        },
-    ];
+    let findings = vec![ares_core::Finding {
+        id: "TEST-003".to_string(),
+        title: "High-confidence finding".to_string(),
+        description: "Missing signer check".to_string(),
+        severity: ares_core::Severity::High,
+        category: ares_core::VulnerabilityCategory::SignerAuthorization,
+        location: ares_core::CodeLocation::default(),
+        proof_of_concept: None,
+        recommendation: "Add signer check".to_string(),
+        references: vec![],
+        confidence: 0.90,
+    }];
 
     let results = judge.validate(findings).await;
 
@@ -307,20 +327,18 @@ async fn test_llm_judge_enabled_missing_key_fallback() {
 
     let judge = ares_v3::llm_judge::LlmJudge::new(&graph, &config);
 
-    let findings = vec![
-        ares_core::Finding {
-            id: "TEST-004".to_string(),
-            title: "Missing key finding".to_string(),
-            description: "No API key configured".to_string(),
-            severity: ares_core::Severity::High,
-            category: ares_core::VulnerabilityCategory::SignerAuthorization,
-            location: ares_core::CodeLocation::default(),
-            proof_of_concept: None,
-            recommendation: "Add API key".to_string(),
-            references: vec![],
-            confidence: 0.90,
-        },
-    ];
+    let findings = vec![ares_core::Finding {
+        id: "TEST-004".to_string(),
+        title: "Missing key finding".to_string(),
+        description: "No API key configured".to_string(),
+        severity: ares_core::Severity::High,
+        category: ares_core::VulnerabilityCategory::SignerAuthorization,
+        location: ares_core::CodeLocation::default(),
+        proof_of_concept: None,
+        recommendation: "Add API key".to_string(),
+        references: vec![],
+        confidence: 0.90,
+    }];
 
     let results = judge.validate(findings).await;
 

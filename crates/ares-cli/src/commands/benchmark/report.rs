@@ -7,14 +7,28 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
     // Trident Arena retrospective benchmark baseline (6 protocols, 30 critical/high)
     // Expected totals match the exact counts published by Trident Arena.
     let trident_expected: std::collections::HashMap<&str, usize> = [
-        ("axelar", 7), ("bert-staking", 2), ("dexalot", 5),
-        ("pump-science", 4), ("metadao", 4), ("watt", 11),
-    ].iter().copied().collect();
+        ("axelar", 7),
+        ("bert-staking", 2),
+        ("dexalot", 5),
+        ("pump-science", 4),
+        ("metadao", 4),
+        ("watt", 11),
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     let trident_baseline: std::collections::HashMap<&str, usize> = [
-        ("axelar", 5), ("bert-staking", 1), ("dexalot", 4),
-        ("pump-science", 1), ("metadao", 3), ("watt", 7),
-    ].iter().copied().collect();
+        ("axelar", 5),
+        ("bert-staking", 1),
+        ("dexalot", 4),
+        ("pump-science", 1),
+        ("metadao", 3),
+        ("watt", 7),
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     // Partition results into stubs vs real-world repos using ground-truth source field
     let stubs: Vec<_> = results.iter().filter(|r| r.source != "real").collect();
@@ -25,13 +39,16 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
     lines.push("".to_string());
     lines.push("> **IMPORTANT DISCLAIMER**: ARES V3 is a **static analysis triage assistant**, not a replacement for human auditors. Metrics below measure how many **published audit findings** (ground truth) are recalled by automated analysis, plus how many **additional findings** require manual triage. Ground truth is inherently incomplete — auditors miss bugs too.".to_string());
     lines.push("".to_string());
-    lines.push("> **Benchmark Architecture Note**: ARES V3 operates a two-segment benchmark.".to_string());
+    lines.push(
+        "> **Benchmark Architecture Note**: ARES V3 operates a two-segment benchmark.".to_string(),
+    );
     lines.push("> - **Segment A — Stub Regression Suite**: 11 deterministic reproduction stubs (50–150 LOC each) that isolate single vulnerability classes. These validate pattern correctness and prevent regression. **~100% detection is expected and achieved.**".to_string());
     lines.push("> - **Segment B — Real-World Capability Assessment**: 9 production repositories (10K+ LOC, multi-program workspaces) scanned with Phase-1 regex + Phase-2 AST + Phase-3 Taint Engine + **Phase-7 deterministic local judge**. **Honest real-world performance**: we recall 75-100% of *published* audit findings while flagging 3-8 additional categories per protocol that require manual triage. This is normal for static analysis — the value is in **directing auditor attention**, not replacing auditors.".to_string());
     lines.push("".to_string());
 
     // ── SEGMENT A: Stub Regression Suite ──
-    lines.push("## Segment A: Stub Regression Suite (Deterministic Pattern Validation)".to_string());
+    lines
+        .push("## Segment A: Stub Regression Suite (Deterministic Pattern Validation)".to_string());
     lines.push("".to_string());
     lines.push("These curated 50–150 LOC reproduction stubs are designed to isolate and reproduce single vulnerability classes. They act as a **regression suite** to ensure pattern heuristics do not degrade. 100% detection is the design goal, not a claim of real-world superiority.".to_string());
     lines.push("".to_string());
@@ -47,11 +64,22 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
         stub_total_expected += expected;
         lines.push(format!(
             "| {} | {} | **{}/{} ({:.0}%)** | N/A | N/A | N/A |",
-            r.protocol_name, expected, detected, expected,
-            if expected > 0 { (detected as f64 / expected as f64) * 100.0 } else { 0.0 }
+            r.protocol_name,
+            expected,
+            detected,
+            expected,
+            if expected > 0 {
+                (detected as f64 / expected as f64) * 100.0
+            } else {
+                0.0
+            }
         ));
     }
-    let stub_rate = if stub_total_expected > 0 { (stub_total_tp as f64 / stub_total_expected as f64) * 100.0 } else { 0.0 };
+    let stub_rate = if stub_total_expected > 0 {
+        (stub_total_tp as f64 / stub_total_expected as f64) * 100.0
+    } else {
+        0.0
+    };
     lines.push(format!(
         "| **TOTAL** | **{}** | **{}/{} ({:.0}%)** | **—** | **—** | **—** |",
         stub_total_expected, stub_total_tp, stub_total_expected, stub_rate
@@ -59,7 +87,9 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
     lines.push("".to_string());
 
     // ── SEGMENT B: Real-World Capability Assessment ──
-    lines.push("## Segment B: Real-World Capability Assessment (Production 10K+ LOC Repos)".to_string());
+    lines.push(
+        "## Segment B: Real-World Capability Assessment (Production 10K+ LOC Repos)".to_string(),
+    );
     lines.push("".to_string());
     lines.push("These are **real cloned production repositories** with multi-program workspaces, audited by professional firms (Ackee, Code4rena, Neodyme, OtterSec, Kudelski, Trail of Bits). ARES V3 runs Phase-1 regex + Phase-2 AST (`syn` + `proc-macro2`) + Phase-3 Taint Engine + **Phase-7 deterministic local judge** (AST-metadata triage suppressing systematic false positives: typed Anchor accounts, validated CPI contexts, safe-wrapper arithmetic). **Honest framing**: metrics show (a) recall of *published audit findings* and (b) how many additional categories require triage.".to_string());
     lines.push("".to_string());
@@ -81,57 +111,98 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
         ares_total_expected += expected;
         ares_total_fp += fp;
 
-        let recall_pct = if expected > 0 { (detected as f64 / expected as f64) * 100.0 } else { 0.0 };
+        let recall_pct = if expected > 0 {
+            (detected as f64 / expected as f64) * 100.0
+        } else {
+            0.0
+        };
 
         if let Some(&trident_expected_count) = trident_expected.get(name) {
             let trident_detected = trident_baseline.get(name).copied().unwrap_or(0);
 
             lines.push(format!(
                 "| {} | {} | **{}/{} ({:.0}%)** | {:.2} | **{}** | {}/{} ({:.0}%) |",
-                name, expected,
-                detected, expected, recall_pct,
+                name,
+                expected,
+                detected,
+                expected,
+                recall_pct,
                 r.precision,
                 total_flagged,
-                trident_detected, trident_expected_count,
+                trident_detected,
+                trident_expected_count,
                 (trident_detected as f64 / trident_expected_count as f64) * 100.0
             ));
         } else {
             // Protocol not in Trident Arena benchmark — show ARES result only
             lines.push(format!(
                 "| {} | {} | **{}/{} ({:.0}%)** | {:.2} | **{}** | N/A |",
-                name, expected,
-                detected, expected, recall_pct,
-                r.precision,
-                total_flagged
+                name, expected, detected, expected, recall_pct, r.precision, total_flagged
             ));
         }
     }
 
-    let ares_known_audit_recall = if ares_total_expected > 0 { (ares_total_tp as f64 / ares_total_expected as f64) * 100.0 } else { 0.0 };
-    let ares_precision = if !reals.is_empty() { reals.iter().map(|r| r.precision).sum::<f64>() / reals.len() as f64 } else { 0.0 };
-    let avg_triage = if !reals.is_empty() { reals.iter().map(|r| r.total_findings as f64).sum::<f64>() / reals.len() as f64 } else { 0.0 };
+    let ares_known_audit_recall = if ares_total_expected > 0 {
+        (ares_total_tp as f64 / ares_total_expected as f64) * 100.0
+    } else {
+        0.0
+    };
+    let ares_precision = if !reals.is_empty() {
+        reals.iter().map(|r| r.precision).sum::<f64>() / reals.len() as f64
+    } else {
+        0.0
+    };
+    let avg_triage = if !reals.is_empty() {
+        reals.iter().map(|r| r.total_findings as f64).sum::<f64>() / reals.len() as f64
+    } else {
+        0.0
+    };
 
     lines.push(format!(
         "| **TOTAL** | **{}** | **{}/{} ({:.0}%)** | **{:.2}** | **{:.0}** | **21/30 (70%)** |",
-        ares_total_expected, ares_total_tp, ares_total_expected, ares_known_audit_recall,
-        ares_precision, avg_triage
+        ares_total_expected,
+        ares_total_tp,
+        ares_total_expected,
+        ares_known_audit_recall,
+        ares_precision,
+        avg_triage
     ));
     lines.push("".to_string());
 
     // ── Aggregate Metrics (Segment B only, honest) ──
-    let avg_r = if !reals.is_empty() { reals.iter().map(|r| r.recall).sum::<f64>() / reals.len() as f64 } else { 0.0 };
-    let avg_f = if !reals.is_empty() { reals.iter().map(|r| r.f1_score).sum::<f64>() / reals.len() as f64 } else { 0.0 };
+    let avg_r = if !reals.is_empty() {
+        reals.iter().map(|r| r.recall).sum::<f64>() / reals.len() as f64
+    } else {
+        0.0
+    };
+    let avg_f = if !reals.is_empty() {
+        reals.iter().map(|r| r.f1_score).sum::<f64>() / reals.len() as f64
+    } else {
+        0.0
+    };
 
     lines.push("## Aggregate Metrics (Real-World Segment Only)".to_string());
     lines.push("".to_string());
     lines.push("| Metric | **ARES V3** | Trident Arena | Plain AI (Avg) |".to_string());
     lines.push("|--------|-------------|---------------|----------------|".to_string());
-    lines.push(format!("| **Known Audit Recall** | **{:.0}%** | ~70% | ~35% |", ares_known_audit_recall));
-    lines.push(format!("| **Precision** | **{:.2}** | N/A | N/A |", ares_precision));
+    lines.push(format!(
+        "| **Known Audit Recall** | **{:.0}%** | ~70% | ~35% |",
+        ares_known_audit_recall
+    ));
+    lines.push(format!(
+        "| **Precision** | **{:.2}** | N/A | N/A |",
+        ares_precision
+    ));
     lines.push(format!("| **Recall** | **{:.2}** | N/A | N/A |", avg_r));
     lines.push(format!("| **F1 Score** | **{:.2}** | N/A | N/A |", avg_f));
-    lines.push(format!("| **Avg Findings / Protocol** | **{:.0}** | — | — |", avg_triage));
-    lines.push(format!("| **Avg Manual Triage / Protocol** | **{:.0}** | — | — |", avg_triage));
+    lines.push(format!(
+        "| **Avg Findings / Protocol** | **{:.0}** | — | — |",
+        avg_triage
+    ));
+    lines.push(format!(
+        "| **Avg Manual Triage / Protocol** | **{:.0}** | — | — |",
+        avg_triage
+    ));
     lines.push("| **Report Format** | **HTML + JSON + Markdown** | PDF | Text |".to_string());
     lines.push("| **Time to Report** | **< 5 seconds** | Hours | N/A |".to_string());
     lines.push("| **Cost per Protocol** | **$0 (local)** | $$$ (SaaS) | API tokens |".to_string());
@@ -139,8 +210,12 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
 
     // Combined totals
     let combined_recall = if (ares_total_expected + stub_total_expected) > 0 {
-        ((ares_total_tp + stub_total_tp) as f64 / (ares_total_expected + stub_total_expected) as f64) * 100.0
-    } else { 0.0 };
+        ((ares_total_tp + stub_total_tp) as f64
+            / (ares_total_expected + stub_total_expected) as f64)
+            * 100.0
+    } else {
+        0.0
+    };
     lines.push(format!(
         "**Combined: ARES V3 recalled {}/{} ({:.0}%) of published audit findings across {} protocols. **",
         ares_total_tp + stub_total_tp,
@@ -168,13 +243,14 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
             "| {} | {} | {} |",
             name,
             r.detected_critical_high,
-            r.detected_categories.len().saturating_sub(r.detected_critical_high)
+            r.detected_categories
+                .len()
+                .saturating_sub(r.detected_critical_high)
         ));
     }
     lines.push(format!(
         "| **TOTAL** | **{}** | **{}** |",
-        ares_total_tp,
-        ares_total_fp
+        ares_total_tp, ares_total_fp
     ));
     lines.push("".to_string());
 

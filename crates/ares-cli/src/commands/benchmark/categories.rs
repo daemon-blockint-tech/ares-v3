@@ -1,10 +1,13 @@
-use crate::commands::benchmark::patterns::{scan_source_patterns, is_comment_line};
+use crate::commands::benchmark::patterns::{is_comment_line, scan_source_patterns};
 
 /// Collect all vulnerability categories detected by static analysis for a given program.
 /// Returns a list of category strings (e.g., ["signer-authorization", "ownership-check"]).
 /// Every category is backed by a generalizable AST/graph heuristic or source pattern.
 /// No protocol name whitelists — all rules fire on structural code evidence alone.
-pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares_mapper::ast_scanner::AstScanner) -> Vec<String> {
+pub fn collect_detected_categories(
+    graph: &ares_mapper::ProgramGraph,
+    ast: &ares_mapper::ast_scanner::AstScanner,
+) -> Vec<String> {
     let mut detected = Vec::new();
     let source_patterns = scan_source_patterns(graph);
 
@@ -15,32 +18,46 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     let is_typed_anchor_field = |f: &&ares_mapper::ast_scanner::AnchorAccountField| {
         let ty = &f.ty;
         let is_account_typed = (ty.starts_with("Account ") || ty.starts_with("Account<"))
-            && !ty.contains("AccountInfo") && !ty.contains("UncheckedAccount");
+            && !ty.contains("AccountInfo")
+            && !ty.contains("UncheckedAccount");
         let is_signer_typed = ty.starts_with("Signer ") || ty.starts_with("Signer<");
         let is_program_typed = ty.starts_with("Program ") || ty.starts_with("Program<");
-        let is_interface_typed = ty.starts_with("Interface ") || ty.starts_with("InterfaceAccount ");
+        let is_interface_typed =
+            ty.starts_with("Interface ") || ty.starts_with("InterfaceAccount ");
         let is_box_typed = ty.starts_with("Box <") || ty.starts_with("Box<");
-        is_account_typed || is_signer_typed || is_program_typed || is_interface_typed || is_box_typed
+        is_account_typed
+            || is_signer_typed
+            || is_program_typed
+            || is_interface_typed
+            || is_box_typed
     };
     let is_unchecked_anchor_field = |f: &&ares_mapper::ast_scanner::AnchorAccountField| {
-        f.is_unchecked_account
-            || f.ty.contains("AccountInfo")
-            || f.ty.contains("UncheckedAccount")
+        f.is_unchecked_account || f.ty.contains("AccountInfo") || f.ty.contains("UncheckedAccount")
     };
     let anchor_field_count: usize = ast.anchor_accounts.iter().map(|a| a.fields.len()).sum();
-    let typed_anchor_fields: usize = ast.anchor_accounts.iter().flat_map(|a| &a.fields)
+    let typed_anchor_fields: usize = ast
+        .anchor_accounts
+        .iter()
+        .flat_map(|a| &a.fields)
         .filter(is_typed_anchor_field)
         .count();
-    let unchecked_fields: usize = ast.anchor_accounts.iter().flat_map(|a| &a.fields)
+    let unchecked_fields: usize = ast
+        .anchor_accounts
+        .iter()
+        .flat_map(|a| &a.fields)
         .filter(is_unchecked_anchor_field)
         .count();
     let has_raw_handler = ast.instruction_handlers.iter().any(|h| {
-        h.params.iter().any(|p| p.is_account_info && !h.has_signer_check)
+        h.params
+            .iter()
+            .any(|p| p.is_account_info && !h.has_signer_check)
     });
-    let cpi_all_validated = !ast.cpi_calls.is_empty() && ast.cpi_calls.iter().all(|c| c.has_program_id_validation);
-    let has_typed_program = ast.instruction_handlers.iter().any(|h| {
-        h.params.iter().any(|p| p.ty.contains("Program<"))
-    });
+    let cpi_all_validated =
+        !ast.cpi_calls.is_empty() && ast.cpi_calls.iter().all(|c| c.has_program_id_validation);
+    let has_typed_program = ast
+        .instruction_handlers
+        .iter()
+        .any(|h| h.params.iter().any(|p| p.ty.contains("Program<")));
     // Anchor-heavy: many typed fields, majority are strongly typed (not AccountInfo/Unchecked)
     let is_anchor_heavy = anchor_field_count > 5 && typed_anchor_fields > anchor_field_count / 2;
 
@@ -73,16 +90,18 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // the caller is not verified against the stored authority.
     // Detected at source field level (bypassing mapper's struct-name limitation).
     // Narrowed: only fire if the program also has ≤ 15 instructions (small escrow programs).
-    let signer_from_anchor_check_no_has_one = source_patterns.has_check_on_seeded_no_has_one
-        && graph.instructions.len() <= 15;
-    if signer_from_check_and_raw || signer_from_raw_sensitive || signer_from_anchor_check_no_has_one {
+    let signer_from_anchor_check_no_has_one =
+        source_patterns.has_check_on_seeded_no_has_one && graph.instructions.len() <= 15;
+    if signer_from_check_and_raw || signer_from_raw_sensitive || signer_from_anchor_check_no_has_one
+    {
         detected.push("signer-authorization".to_string());
     }
 
     // ── Missing-signer ──
     // Fires ONLY alongside signer-authorization — it is a companion finding, not independent.
     // Only emit when the raw-handler or Anchor-check signal already fired.
-    if signer_from_check_and_raw || signer_from_raw_sensitive || signer_from_anchor_check_no_has_one {
+    if signer_from_check_and_raw || signer_from_raw_sensitive || signer_from_anchor_check_no_has_one
+    {
         detected.push("missing-signer".to_string());
     }
 
@@ -94,8 +113,7 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     let owner_from_raw_financial = source_patterns.has_account_info_unchecked
         && has_raw_handler
         && graph.instructions.iter().any(|i| {
-            i.name.to_lowercase().contains("transfer")
-                || i.name.to_lowercase().contains("withdraw")
+            i.name.to_lowercase().contains("transfer") || i.name.to_lowercase().contains("withdraw")
         });
     // Signal 3: /// CHECK: + AccountInfo on a non-relay program (relay programs pass accounts
     // they don't own by design). Gated: only fire if the program also has a financial
@@ -104,7 +122,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // standard pattern for CPI target programs and collection references — not a real
     // ownership-check vulnerability. Non-mutable unchecked accounts can only be used
     // for .key() references; data access requires mutability.
-    let has_unchecked_mut_field = ast.anchor_accounts.iter()
+    let has_unchecked_mut_field = ast
+        .anchor_accounts
+        .iter()
         .flat_map(|a| &a.fields)
         .any(|f| (f.is_unchecked_account || f.ty.contains("AccountInfo")) && f.is_mut);
     let owner_from_check_and_info = source_patterns.has_check_annotation
@@ -123,7 +143,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // oracle account is owned by the expected oracle program; the _unchecked variant trusts
     // account data without owner verification, enabling price manipulation via forged oracle.
     // E.g. Solend: get_single_price_unchecked, get_pyth_price_unchecked.
-    if source_patterns.has_raw_rust_unchecked_calls && !detected.contains(&"ownership-check".to_string()) {
+    if source_patterns.has_raw_rust_unchecked_calls
+        && !detected.contains(&"ownership-check".to_string())
+    {
         detected.push("ownership-check".to_string());
     }
 
@@ -150,7 +172,10 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     let has_cpi_context_with_unchecked_program = source_patterns.has_cpi_context_new_variable
         && source_patterns.has_account_info_unchecked
         && source_patterns.has_check_annotation
-        && !ast.instruction_handlers.iter().any(|h| h.has_program_id_check)
+        && !ast
+            .instruction_handlers
+            .iter()
+            .any(|h| h.has_program_id_check)
         && (graph.instructions.len() <= 50 || !is_anchor_heavy);
     if has_raw_unvalidated_cpi || has_cpi_context_with_unchecked_program {
         detected.push("arbitrary-cpi".to_string());
@@ -162,8 +187,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Gated: only fire on programs with ≤ 200 instructions. Large DEX programs (>200 instr)
     // always have init instructions with non-Signer admin accounts (PDA authorities, system
     // accounts for CPI) that are safe because the PDA derivation prevents frontrunning.
-    let frontrun_from_unchecked_admin = source_patterns.has_init_with_unchecked_admin
-        && graph.instructions.len() <= 200;
+    let frontrun_from_unchecked_admin =
+        source_patterns.has_init_with_unchecked_admin && graph.instructions.len() <= 200;
     // Signal B: init instruction with a PDA using fully fixed seeds (no signer-derived
     // component) where the init context has a Signer but NO constraint linking that
     // signer to the initialized account (e.g., no has_one, no upgrade-authority check).
@@ -171,16 +196,19 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Detected at source level (field names) to bypass the mapper AccountNode.name limitation.
     // Gated: only fire when the program has ≤ 5 instructions (small config programs).
     // Large programs always have some unconstrained inits (e.g., user PDAs).
-    let frontrun_from_fixed_seeds_unconstrained = source_patterns.has_init_global_unconstrained
-        && graph.instructions.len() <= 5;
+    let frontrun_from_fixed_seeds_unconstrained =
+        source_patterns.has_init_global_unconstrained && graph.instructions.len() <= 5;
     // Signal C: CPI-level PDA frontrunning — invoke_signed to external program where an
     // `UncheckedAccount` named `*escrow*` has no Anchor seeds constraint validating its address.
     // An attacker can pre-create the PDA at the external program before migration, causing DoS.
     // This is the Pump Science H-01 pattern (lock_pool.rs: lock_escrow UncheckedAccount).
     // Gated: program must have > 5 instructions (migration programs are larger than trivial configs).
-    let frontrun_from_unchecked_escrow_cpi = source_patterns.has_unchecked_escrow_invoke_signed
-        && graph.instructions.len() > 5;
-    if frontrun_from_unchecked_admin || frontrun_from_fixed_seeds_unconstrained || frontrun_from_unchecked_escrow_cpi {
+    let frontrun_from_unchecked_escrow_cpi =
+        source_patterns.has_unchecked_escrow_invoke_signed && graph.instructions.len() > 5;
+    if frontrun_from_unchecked_admin
+        || frontrun_from_fixed_seeds_unconstrained
+        || frontrun_from_unchecked_escrow_cpi
+    {
         detected.push("initialization-frontrunning".to_string());
     }
 
@@ -190,8 +218,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // pattern (which specifically tracks `init_if_needed` variant in the source scanner).
     // `has_init_with_fixed_seeds` alone fires on normal PDA init; the combination with
     // `has_any_init_with_fixed_seeds` narrows to the init_if_needed re-init case.
-    let reinit_fixed_seeds = source_patterns.has_init_with_fixed_seeds
-        && source_patterns.has_any_init_with_fixed_seeds;
+    let reinit_fixed_seeds =
+        source_patterns.has_init_with_fixed_seeds && source_patterns.has_any_init_with_fixed_seeds;
     // Signal B: init_if_needed with dynamic seeds (no fixed b"..." literals) but NO
     // is_initialized / discriminator guard field — the MetaDAO pattern where proposal PDAs
     // use the proposal pubkey as seed so `has_init_with_fixed_seeds` never fires, but the
@@ -213,8 +241,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Threshold raised to > 10 instructions: small programs rarely have the arithmetic
     // complexity that makes an unchecked cast exploitable. Programs with many instructions
     // are more likely to have complex financial math where truncation matters.
-    let cast_from_explicit = source_patterns.has_unchecked_numeric_cast
-        && graph.instructions.len() > 10;
+    let cast_from_explicit =
+        source_patterns.has_unchecked_numeric_cast && graph.instructions.len() > 10;
     // Signal B: custom math macro (checked_math!, safe_math!, i80f48!, precise_number!, etc.)
     // used near u128→u64 cast in a financial context. These macros may expand to unchecked
     // operations at runtime despite safe-looking syntax — the MetaDAO LP math pattern.
@@ -226,13 +254,16 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Signal C (raw Rust _unchecked oracle/price calls): _unchecked function variants skip
     // staleness/validation checks on price data, allowing stale or invalid data to be used
     // in financial calculations. E.g. Solend: get_price_unchecked, get_ema_price_unchecked.
-    if source_patterns.has_raw_rust_unchecked_calls && !detected.contains(&"unchecked-cast".to_string()) {
+    if source_patterns.has_raw_rust_unchecked_calls
+        && !detected.contains(&"unchecked-cast".to_string())
+    {
         detected.push("unchecked-cast".to_string());
     }
     // Signal D (bytemuck unsafe byte cast): bytemuck::bytes_of_mut bypasses type checking
     // for account mutation; cast/cast_slice reinterprets without validation. bytes_of (PDA
     // seeds) and from_bytes (zero-copy Pod) are safe patterns and not flagged.
-    if source_patterns.has_bytemuck_unsafe_cast && !detected.contains(&"unchecked-cast".to_string()) {
+    if source_patterns.has_bytemuck_unsafe_cast && !detected.contains(&"unchecked-cast".to_string())
+    {
         detected.push("unchecked-cast".to_string());
     }
 
@@ -262,7 +293,10 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Also require has_try_from_slice (or equivalent unsafe deserialization evidence):
     // type-cosplay fundamentally requires unchecked deserialization; unchecked accounts alone
     // only indicate relay/CPI-passthrough patterns, not type confusion.
-    if source_patterns.has_mutable_unchecked_account_pair && has_financial_instruction && source_patterns.has_try_from_slice {
+    if source_patterns.has_mutable_unchecked_account_pair
+        && has_financial_instruction
+        && source_patterns.has_try_from_slice
+    {
         if !detected.contains(&"type-cosplay".to_string()) {
             detected.push("type-cosplay".to_string());
         }
@@ -273,7 +307,13 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Expanded financial instruction detection to include "update" and "set" patterns
     // (many data-matching bugs involve update instructions, not transfer/withdraw).
     let has_cpi_reload_risk = graph.instructions.iter().any(|i| {
-        i.uses_cpi && i.effects.iter().any(|(_, e)| matches!(e, ares_mapper::AccountEffect::Read | ares_mapper::AccountEffect::Write))
+        i.uses_cpi
+            && i.effects.iter().any(|(_, e)| {
+                matches!(
+                    e,
+                    ares_mapper::AccountEffect::Read | ares_mapper::AccountEffect::Write
+                )
+            })
     });
     let account_data_matching_scope = graph.instructions.len() <= 30 || has_cpi_reload_risk;
     if source_patterns.has_mutable_account_with_signer_no_link
@@ -347,10 +387,7 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // (c) the program has ≤ 50 instructions (large programs always have some CPI+read).
     // The combination of all three narrows to genuine stale-read-after-CPI patterns.
     let account_reloading_scope = graph.instructions.len() <= 50;
-    if source_patterns.has_cpi_after_state_read
-        && has_cpi_reload_risk
-        && account_reloading_scope
-    {
+    if source_patterns.has_cpi_after_state_read && has_cpi_reload_risk && account_reloading_scope {
         detected.push("account-reloading".to_string());
     }
     // Signal B: broader cross-instruction staleness (has_post_cpi_stale_field_read).
@@ -379,7 +416,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // its old value. After every admin update the state is inconsistent with the intended config,
     // requiring re-validation of the missing field. This is the Pump Science H-02 pattern.
     let missing_reval_from_field_write_gap = source_patterns.has_settings_field_write_gap;
-    if (missing_reval_from_drain || missing_reval_from_cpi_and_mutable || missing_reval_from_field_write_gap)
+    if (missing_reval_from_drain
+        || missing_reval_from_cpi_and_mutable
+        || missing_reval_from_field_write_gap)
         && !detected.contains(&"missing-revalidation".to_string())
     {
         detected.push("missing-revalidation".to_string());
@@ -396,7 +435,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // with `/// CHECK:` in same Accounts struct — Dexalot swap ATA pattern.
     let dup_by_name = source_patterns.has_duplicate_mutable_pair && has_financial_instruction;
     let dup_by_type = source_patterns.has_same_type_mutable_pair && has_financial_instruction;
-    let dup_by_unchecked_pair = source_patterns.has_mutable_unchecked_account_pair && has_financial_instruction;
+    let dup_by_unchecked_pair =
+        source_patterns.has_mutable_unchecked_account_pair && has_financial_instruction;
     if dup_by_name || dup_by_type || dup_by_unchecked_pair {
         detected.push("duplicate-mutable-accounts".to_string());
     }
@@ -404,7 +444,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // ── PDA-privileges ──
     // Signal 1 (concrete graph): PDA with no has_one that is concretely CpiPass'd.
     let pda_signs_cpi_without_link = graph.accounts.iter().any(|a| {
-        a.seeds.is_some() && a.has_one_constraints.is_empty()
+        a.seeds.is_some()
+            && a.has_one_constraints.is_empty()
             && graph.instructions.iter().any(|i| {
                 i.effects.iter().any(|(name, effect)| {
                     *name == a.name && matches!(effect, ares_mapper::AccountEffect::CpiPass)
@@ -428,16 +469,34 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // Signal: an instruction BOTH writes to an account AND passes that SAME account
     // to a CPI call — the real reentrancy vector. Only fire on same-account overlap.
     let has_reentrancy_pattern = graph.instructions.iter().any(|i| {
-        if !i.uses_cpi { return false; }
-        let written: std::collections::HashSet<_> = i.effects.iter()
-            .filter(|(_, e)| matches!(e, ares_mapper::AccountEffect::Write | ares_mapper::AccountEffect::Create | ares_mapper::AccountEffect::Close))
-            .map(|(n, _)| n.clone()).collect();
-        let cpi_passed: std::collections::HashSet<_> = i.effects.iter()
+        if !i.uses_cpi {
+            return false;
+        }
+        let written: std::collections::HashSet<_> = i
+            .effects
+            .iter()
+            .filter(|(_, e)| {
+                matches!(
+                    e,
+                    ares_mapper::AccountEffect::Write
+                        | ares_mapper::AccountEffect::Create
+                        | ares_mapper::AccountEffect::Close
+                )
+            })
+            .map(|(n, _)| n.clone())
+            .collect();
+        let cpi_passed: std::collections::HashSet<_> = i
+            .effects
+            .iter()
             .filter(|(_, e)| matches!(e, ares_mapper::AccountEffect::CpiPass))
-            .map(|(n, _)| n.clone()).collect();
-        !written.is_empty() && !cpi_passed.is_empty() && written.intersection(&cpi_passed).next().is_some()
+            .map(|(n, _)| n.clone())
+            .collect();
+        !written.is_empty()
+            && !cpi_passed.is_empty()
+            && written.intersection(&cpi_passed).next().is_some()
     });
-    if has_reentrancy_pattern || source_patterns.has_state_set_then_cpi_then_state_set
+    if has_reentrancy_pattern
+        || source_patterns.has_state_set_then_cpi_then_state_set
         || source_patterns.has_remaining_accounts_cpi
     {
         detected.push("reentrancy-risk".to_string());
@@ -445,7 +504,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
 
     // ── Cross-instruction analysis (Phase 3 taint) ──
     // Only accept findings with confidence >= 0.75 on non-trivial instruction pairs.
-    let cross = ares_mapper::cross_analysis::analyze(graph).ok().unwrap_or_default();
+    let cross = ares_mapper::cross_analysis::analyze(graph)
+        .ok()
+        .unwrap_or_default();
     for cf in cross {
         if cf.confidence >= 0.75
             && !cf.source_instruction.contains("get_")
@@ -481,16 +542,21 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     }
 
     // Rule 2: ownership-check — suppress if all Anchor fields are typed/Signer/Program.
-    if detected.contains(&"ownership-check".to_string()) && is_anchor_heavy && unchecked_fields == 0 {
+    if detected.contains(&"ownership-check".to_string()) && is_anchor_heavy && unchecked_fields == 0
+    {
         suppressed.push("ownership-check");
     }
 
     // Rule 3: signer-authorization — suppress on Anchor-heavy projects with no raw AccountInfo handlers.
     // Exception: do NOT suppress when Signal C fired (/// CHECK: on seeded mutable account with no has_one)
     // — that is a genuine structural vulnerability even in Anchor-heavy programs.
-    if detected.contains(&"signer-authorization".to_string()) && is_anchor_heavy && !has_raw_handler {
+    if detected.contains(&"signer-authorization".to_string()) && is_anchor_heavy && !has_raw_handler
+    {
         // Only suppress if the Anchor-check signal was the sole trigger (not raw handler or Signal C).
-        if !signer_from_check_and_raw && !signer_from_raw_sensitive && !signer_from_anchor_check_no_has_one {
+        if !signer_from_check_and_raw
+            && !signer_from_raw_sensitive
+            && !signer_from_anchor_check_no_has_one
+        {
             suppressed.push("signer-authorization");
             suppressed.push("missing-signer");
         }
@@ -498,7 +564,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
 
     // Rule 4: missing-signer — suppress on Anchor-heavy programs without raw handlers,
     // UNLESS Signal C fired (genuine structural gap).
-    if detected.contains(&"missing-signer".to_string()) && is_anchor_heavy && !has_raw_handler
+    if detected.contains(&"missing-signer".to_string())
+        && is_anchor_heavy
+        && !has_raw_handler
         && !signer_from_anchor_check_no_has_one
     {
         suppressed.push("missing-signer");
@@ -517,12 +585,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
                 && !h.has_program_id_check
                 && !h.params.iter().any(|p| p.ty.contains("Program<"))
         });
-        let layerzero_oapp = source_patterns.has_hardcoded_endpoint_id
-            && source_patterns.has_typed_program_field;
-        if cpi_all_validated
-            || (has_typed_program && !has_raw_unvalidated_cpi2)
-            || layerzero_oapp
-        {
+        let layerzero_oapp =
+            source_patterns.has_hardcoded_endpoint_id && source_patterns.has_typed_program_field;
+        if cpi_all_validated || (has_typed_program && !has_raw_unvalidated_cpi2) || layerzero_oapp {
             suppressed.push("arbitrary-cpi");
         }
     }
@@ -576,11 +641,13 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // instructions use AccountInfo as signer with explicit constraint — not a real missing-signer.
     // Gate: is_anchor_heavy AND cpi_all_validated AND raw handler signal was the sole trigger
     // AND program is large (> 50 instructions — confirmed bridge/relay design).
-    if (detected.contains(&"missing-signer".to_string()) || detected.contains(&"signer-authorization".to_string()))
+    if (detected.contains(&"missing-signer".to_string())
+        || detected.contains(&"signer-authorization".to_string()))
         && is_anchor_heavy
         && cpi_all_validated
         && !signer_from_anchor_check_no_has_one
-        && graph.instructions.len() > 50  // only suppress on large confirmed bridge/relay programs
+        && graph.instructions.len() > 50
+    // only suppress on large confirmed bridge/relay programs
     {
         // Only suppress if the raw-handler signal is the sole signer-auth trigger
         // (signer_from_check_and_raw or signer_from_raw_sensitive) but the program
@@ -604,7 +671,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
         && cpi_all_validated
         && !has_swap_instruction
         && !dup_by_unchecked_pair // only suppress name/type signals, not unchecked-pair
-        && graph.instructions.len() > 50 // only suppress on large bridge/relay programs
+        && graph.instructions.len() > 50
+    // only suppress on large bridge/relay programs
     {
         suppressed.push("duplicate-mutable-accounts");
     }
@@ -706,7 +774,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
         && graph.instructions.len() > 100
         && source_patterns.has_mutable_unchecked_account_pair
         && is_anchor_heavy
-        && source_patterns.has_hardcoded_endpoint_id // only Dexalot-style LayerZero OApp
+        && source_patterns.has_hardcoded_endpoint_id
+    // only Dexalot-style LayerZero OApp
     {
         suppressed.push("missing-revalidation");
     }
@@ -738,14 +807,13 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // `fee_bps as u64` (u16→u64) that fire because u128 appears elsewhere in the same file.
     // The actual risk is u128→u64 truncation; u16/u32→u64 is always safe.
     // Only suppress cast_from_explicit (not cast_from_macro, which is independently high-signal).
-    if detected.contains(&"unchecked-cast".to_string())
-        && cast_from_explicit
-        && !cast_from_macro
-    {
+    if detected.contains(&"unchecked-cast".to_string()) && cast_from_explicit && !cast_from_macro {
         // Check if every `as u64` line has u128/i128 on the same line
         // If NO line combining u128 and `as u64` exists, the cast is a widening cast → suppress
         let mut seen_cast_paths = std::collections::HashSet::new();
-        let scan_paths_for_cast: Vec<_> = graph.instructions.iter()
+        let scan_paths_for_cast: Vec<_> = graph
+            .instructions
+            .iter()
             .map(|i| &i.file_path)
             .chain(graph.accounts.iter().map(|a| &a.file_path))
             .chain(graph.all_source_files.iter())
@@ -765,7 +833,9 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
                     }
                 }
             }
-            if has_u128_to_u64_on_same_line { break; }
+            if has_u128_to_u64_on_same_line {
+                break;
+            }
         }
         if !has_u128_to_u64_on_same_line {
             suppressed.push("unchecked-cast");
@@ -780,7 +850,8 @@ pub fn collect_detected_categories(graph: &ares_mapper::ProgramGraph, ast: &ares
     // and the program has unchecked_escrow_invoke_signed (CPI delegation context).
     if detected.contains(&"type-cosplay".to_string())
         && source_patterns.has_unchecked_escrow_invoke_signed
-        && !source_patterns.has_try_from_slice  // Signal A not active
+        && !source_patterns.has_try_from_slice
+    // Signal A not active
     {
         suppressed.push("type-cosplay");
     }

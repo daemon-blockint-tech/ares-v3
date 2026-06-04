@@ -110,7 +110,9 @@ impl VulnerabilityCategory {
             "duplicate-mutable-accounts" => Some(Self::DuplicateMutableAccounts),
             "arithmetic-overflow" => Some(Self::ArithmeticOverflow),
             "close-account" => Some(Self::CloseAccount),
-            "account-reloading" | "revival-attack" | "re-initialization" => Some(Self::AccountReloading),
+            "account-reloading" | "revival-attack" | "re-initialization" => {
+                Some(Self::AccountReloading)
+            }
             "account-data-matching" => Some(Self::AccountDataMatching),
             "pda-privileges" => Some(Self::PdaPrivileges),
             "fuzzing-crash" | "fuzzing" => Some(Self::FuzzingCrash),
@@ -291,19 +293,14 @@ pub struct BenchmarkResult {
 }
 
 /// LLM provider selection for ARES-as-Judge.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LlmProvider {
     Openai,
     Anthropic,
     Ollama,
+    #[default]
     Disabled,
-}
-
-impl Default for LlmProvider {
-    fn default() -> Self {
-        LlmProvider::Disabled
-    }
 }
 
 /// Configuration for ARES CLI.
@@ -422,15 +419,29 @@ mod tests {
         for cat in &unique_cats {
             let display = cat.to_string();
             let parsed = VulnerabilityCategory::from_str_checked(&display);
-            assert_eq!(parsed, Some(cat.clone()), "Failed to roundtrip: {}", display);
+            assert_eq!(
+                parsed,
+                Some(cat.clone()),
+                "Failed to roundtrip: {}",
+                display
+            );
         }
     }
 
     #[test]
     fn test_vulnerability_category_display() {
-        assert_eq!(VulnerabilityCategory::TypeCosplay.to_string(), "type-cosplay");
-        assert_eq!(VulnerabilityCategory::SignerAuthorization.to_string(), "signer-authorization");
-        assert_eq!(VulnerabilityCategory::ArbitraryCpi.to_string(), "arbitrary-cpi");
+        assert_eq!(
+            VulnerabilityCategory::TypeCosplay.to_string(),
+            "type-cosplay"
+        );
+        assert_eq!(
+            VulnerabilityCategory::SignerAuthorization.to_string(),
+            "signer-authorization"
+        );
+        assert_eq!(
+            VulnerabilityCategory::ArbitraryCpi.to_string(),
+            "arbitrary-cpi"
+        );
         assert_eq!(VulnerabilityCategory::Generic.to_string(), "generic");
     }
 
@@ -532,7 +543,7 @@ mod tests {
     fn test_config_default() {
         let config = AresConfig::default();
         assert_eq!(config.llm_provider, LlmProvider::Disabled);
-        assert_eq!(config.llm_judge_enabled, false);
+        assert!(!config.llm_judge_enabled);
         assert_eq!(config.llm_model, "claude-3-5-sonnet");
     }
 

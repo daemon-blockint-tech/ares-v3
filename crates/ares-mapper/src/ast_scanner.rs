@@ -1,11 +1,11 @@
+use crate::taint_engine::TaintEngine;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use syn::{visit::Visit, Attribute, ItemFn, ItemStruct, Expr, Pat, PatType, FnArg};
 use syn::spanned::Spanned;
+use syn::{visit::Visit, Attribute, Expr, FnArg, ItemFn, ItemStruct, Pat, PatType};
 use tracing::{info, warn};
 use walkdir::WalkDir;
-use rayon::prelude::*;
-use crate::taint_engine::TaintEngine;
 
 /// Phase-2 AST-based scanner for Solana programs.
 /// Uses `syn` to parse Rust AST and detect vulnerabilities that Phase-1 regex misses:
@@ -119,11 +119,16 @@ pub fn analyze_file(path: &Path, content: &str) -> AstScanner {
         // Conservativeness: Anchor CpiContext (body contains "CpiContext") validates
         // the target program account through Anchor's typed account system.
         // Only flag raw invoke/invoke_signed calls without explicit validation.
-        let has_typed_program_account = handler.params.iter().any(|p| {
-            p.ty.contains("Program<") || p.ty.contains("ProgramAccount<")
-        });
-        
-        if handler.is_entry_point && handler.uses_invoke && !handler.has_program_id_check && !has_typed_program_account {
+        let has_typed_program_account = handler
+            .params
+            .iter()
+            .any(|p| p.ty.contains("Program<") || p.ty.contains("ProgramAccount<"));
+
+        if handler.is_entry_point
+            && handler.uses_invoke
+            && !handler.has_program_id_check
+            && !has_typed_program_account
+        {
             scanner.findings.push(AstFinding {
                 category: "arbitrary-cpi".to_string(),
                 severity: "Critical".to_string(),
@@ -187,8 +192,8 @@ pub fn analyze_file(path: &Path, content: &str) -> AstScanner {
                     let ty_str = quote::quote!(#ty).to_string();
                     taint.mark_param(&param_name, &ty_str);
                 }
+            }
         }
-    }
     }
 
     // Convert taint findings to AST findings
@@ -217,9 +222,7 @@ struct SolanaVisitor<'a> {
 impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
         // Detect Anchor #[derive(Accounts)] structs
-        let has_derive_accounts = node.attrs.iter().any(|attr| {
-            is_derive_accounts_attr(attr)
-        });
+        let has_derive_accounts = node.attrs.iter().any(|attr| is_derive_accounts_attr(attr));
 
         if has_derive_accounts {
             let mut account_struct = AnchorAccountStruct {
@@ -229,12 +232,19 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
             };
 
             for field in &node.fields {
-                let field_name = field.ident.as_ref().map(|i| i.to_string()).unwrap_or_default();
+                let field_name = field
+                    .ident
+                    .as_ref()
+                    .map(|i| i.to_string())
+                    .unwrap_or_default();
                 let ty = &field.ty;
                 let ty_str = quote::quote!(#ty).to_string();
 
                 let is_unchecked = ty_str.contains("UncheckedAccount")
-                    || field.attrs.iter().any(|a| attr_to_string(a).contains("unchecked"));
+                    || field
+                        .attrs
+                        .iter()
+                        .any(|a| attr_to_string(a).contains("unchecked"));
 
                 let is_signer = field.attrs.iter().any(|a| {
                     let s = attr_to_string(a);
@@ -286,9 +296,10 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
         }
 
         // Detect Solitaire #[derive(FromAccounts)] structs
-        let has_derive_from_accounts = node.attrs.iter().any(|attr| {
-            is_derive_from_accounts_attr(attr)
-        });
+        let has_derive_from_accounts = node
+            .attrs
+            .iter()
+            .any(|attr| is_derive_from_accounts_attr(attr));
 
         if has_derive_from_accounts {
             let mut account_struct = SolitaireAccountStruct {
@@ -298,7 +309,11 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
             };
 
             for field in &node.fields {
-                let field_name = field.ident.as_ref().map(|i| i.to_string()).unwrap_or_default();
+                let field_name = field
+                    .ident
+                    .as_ref()
+                    .map(|i| i.to_string())
+                    .unwrap_or_default();
                 let ty = &field.ty;
                 let ty_str = quote::quote!(#ty).to_string();
 
@@ -328,9 +343,17 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 if is_raw_info && !is_signer && !is_sysvar {
                     // Check if field name suggests it should be validated
                     let should_be_validated = [
-                        "instruction", "instruction_acc", "sysvar", "clock", "rent",
-                        "stake_history", "epoch_schedule", "recent_blockhashes",
-                    ].iter().any(|&s| field_name.to_lowercase().contains(s));
+                        "instruction",
+                        "instruction_acc",
+                        "sysvar",
+                        "clock",
+                        "rent",
+                        "stake_history",
+                        "epoch_schedule",
+                        "recent_blockhashes",
+                    ]
+                    .iter()
+                    .any(|&s| field_name.to_lowercase().contains(s));
 
                     if should_be_validated {
                         self.scanner.findings.push(AstFinding {
@@ -383,7 +406,8 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
 
         // Detect if this is an Anchor instruction handler
         let is_instruction = node.attrs.iter().any(|attr| {
-            attr_to_string(attr).contains("# [instruction]") || attr_to_string(attr).contains("entrypoint!")
+            attr_to_string(attr).contains("# [instruction]")
+                || attr_to_string(attr).contains("entrypoint!")
         });
 
         // Detect if this is a Solitaire instruction handler
@@ -393,7 +417,8 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
             first_param.contains("ExecutionContext")
         };
 
-        handler.is_entry_point = is_instruction || is_solitaire_handler || fn_name.starts_with("process_");
+        handler.is_entry_point =
+            is_instruction || is_solitaire_handler || fn_name.starts_with("process_");
 
         // Extract parameters
         for arg in &node.sig.inputs {
@@ -402,7 +427,8 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                     let param_name = pat_to_string(pat);
                     let ty_str = quote::quote!(#ty).to_string();
                     let is_ctx = ty_str.contains("Context<") || ty_str.contains("ExecutionContext");
-                    let is_account_info = ty_str.contains("AccountInfo") || ty_str.contains("Info<");
+                    let is_account_info =
+                        ty_str.contains("AccountInfo") || ty_str.contains("Info<");
 
                     handler.params.push(HandlerParam {
                         name: param_name.clone(),
@@ -428,9 +454,16 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
         let body_str = quote::quote!(#node.block).to_string();
         handler.has_signer_check = body_str.contains("is_signer")
             || body_str.contains("Signer")
-            || handler.params.iter().any(|p| p.is_ctx && p.ty.contains("Signer"));
+            || handler
+                .params
+                .iter()
+                .any(|p| p.is_ctx && p.ty.contains("Signer"));
 
-        if is_instruction || is_solitaire_handler || handler.uses_invoke || handler.params.iter().any(|p| p.is_account_info) {
+        if is_instruction
+            || is_solitaire_handler
+            || handler.uses_invoke
+            || handler.params.iter().any(|p| p.is_account_info)
+        {
             self.scanner.instruction_handlers.push(handler);
         }
     }
@@ -453,7 +486,9 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
 
         // Detect program_id validation
         // Covers both == (Anchor: program_id == expected) and != (raw Rust: .owner != program_id)
-        if expr_str.contains("program_id") && (expr_str.contains("==") || expr_str.contains("!=") || expr_str.contains("check")) {
+        if expr_str.contains("program_id")
+            && (expr_str.contains("==") || expr_str.contains("!=") || expr_str.contains("check"))
+        {
             self.program_id_checked = true;
         }
 
@@ -609,7 +644,10 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
             || expr_str_compact.contains("i128::try_from_slice")
             || expr_str_compact.contains("i64::try_from_slice")
             || expr_str_compact.contains("BigNum::try_from_slice");
-        if expr_str_compact.contains("try_from_slice") && !expr_str_compact.contains("discriminator") && !is_safe_try_from {
+        if expr_str_compact.contains("try_from_slice")
+            && !expr_str_compact.contains("discriminator")
+            && !is_safe_try_from
+        {
             let is_test_or_util = self.path.to_string_lossy().contains("test")
                 || self.path.to_string_lossy().contains("util")
                 || self.path.to_string_lossy().contains("mock");
@@ -693,7 +731,11 @@ fn attr_to_string(attr: &Attribute) -> String {
 }
 
 fn pat_to_string(pat: &Pat) -> String {
-    quote::quote!(#pat).to_string().replace(" ", "").replace("&mut", "").replace("&", "")
+    quote::quote!(#pat)
+        .to_string()
+        .replace(" ", "")
+        .replace("&mut", "")
+        .replace("&", "")
 }
 
 /// Run AST-based analysis across all `.rs` files in a program directory.
@@ -705,7 +747,9 @@ pub fn scan_directory_ast(dir: &Path) -> AstScanner {
         .filter(|e| e.path().extension().and_then(|e| e.to_str()) == Some("rs"))
         .filter_map(|e| {
             let path = e.path().to_path_buf();
-            std::fs::read_to_string(&path).ok().map(|content| (path, content))
+            std::fs::read_to_string(&path)
+                .ok()
+                .map(|content| (path, content))
         })
         .collect();
 
@@ -718,8 +762,12 @@ pub fn scan_directory_ast(dir: &Path) -> AstScanner {
     for scanner in scanners {
         combined.findings.extend(scanner.findings);
         combined.anchor_accounts.extend(scanner.anchor_accounts);
-        combined.solitaire_accounts.extend(scanner.solitaire_accounts);
-        combined.instruction_handlers.extend(scanner.instruction_handlers);
+        combined
+            .solitaire_accounts
+            .extend(scanner.solitaire_accounts);
+        combined
+            .instruction_handlers
+            .extend(scanner.instruction_handlers);
         combined.cpi_calls.extend(scanner.cpi_calls);
     }
 

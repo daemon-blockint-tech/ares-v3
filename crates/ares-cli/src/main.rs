@@ -213,9 +213,9 @@ async fn main() -> Result<()> {
         1 => "debug",
         _ => "trace",
     };
-    
+
     let is_tui = matches!(cli.command, Some(Commands::Interact {}) | None);
-    
+
     let _log_guard = if is_tui {
         let file_appender = tracing_appender::rolling::never(".", "ares.log");
         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
@@ -314,7 +314,14 @@ async fn main() -> Result<()> {
                 "Validating PoC {:?} | fork_mainnet={} slot={:?} rpc={:?}",
                 poc_path, fork_mainnet, fork_slot, rpc_url
             );
-            ares_v3::commands::validate::execute(&poc_path, fork_mainnet, fork_slot, &config, rpc_url).await?;
+            ares_v3::commands::validate::execute(
+                &poc_path,
+                fork_mainnet,
+                fork_slot,
+                &config,
+                rpc_url,
+            )
+            .await?;
         }
         Some(Commands::Report {
             scan_output,
@@ -353,14 +360,14 @@ async fn main() -> Result<()> {
             ares_v3::commands::dashboard::execute(&benchmark_json, &output, format).await?;
         }
         Some(Commands::Llm { command }) => match command {
-            LlmCommands::Setup { provider, api_key, model, endpoint } => {
-                ares_v3::commands::llm::setup(
-                    provider, 
-                    api_key, 
-                    model, 
-                    endpoint, 
-                    &cli.config
-                ).await?;
+            LlmCommands::Setup {
+                provider,
+                api_key,
+                model,
+                endpoint,
+            } => {
+                ares_v3::commands::llm::setup(provider, api_key, model, endpoint, &cli.config)
+                    .await?;
             }
             LlmCommands::Status => {
                 ares_v3::commands::llm::status(&config).await?;
