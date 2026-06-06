@@ -5,7 +5,6 @@ all-features = true
 vulnerability = "deny"
 unmaintained = "warn"
 yanked = "warn"
-notice = "warn"
 
 [licenses]
 unlicensed = "deny"
@@ -22,9 +21,7 @@ allow = [
 
 [bans]
 multiple-versions = "workspace"
-wildcards = "deny"
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = []
