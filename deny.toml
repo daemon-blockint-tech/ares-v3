@@ -1,6 +1,3 @@
-[graph]
-all-features = true
-
 [advisories]
 vulnerability = "deny"
 unmaintained = "warn"
@@ -18,9 +15,6 @@ allow = [
     "Zlib",
     "0BSD",
 ]
-
-[bans]
-multiple-versions = "workspace"
 
 [sources]
 unknown-registry = "deny"
