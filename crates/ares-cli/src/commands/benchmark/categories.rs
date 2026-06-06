@@ -296,9 +296,10 @@ pub fn collect_detected_categories(
     if source_patterns.has_mutable_unchecked_account_pair
         && has_financial_instruction
         && source_patterns.has_try_from_slice
-        && !detected.contains(&"type-cosplay".to_string()) {
-            detected.push("type-cosplay".to_string());
-        }
+        && !detected.contains(&"type-cosplay".to_string())
+    {
+        detected.push("type-cosplay".to_string());
+    }
 
     // ── Account-data-matching ──
     // Signal 1: mutable account with signer but no has_one/constraint linking them.
@@ -320,42 +321,50 @@ pub fn collect_detected_categories(
     {
         detected.push("account-data-matching".to_string());
     }
-    if has_cpi_reload_risk && source_patterns.has_cpi_after_state_read
-        && !detected.contains(&"account-data-matching".to_string()) {
-            detected.push("account-data-matching".to_string());
-        }
+    if has_cpi_reload_risk
+        && source_patterns.has_cpi_after_state_read
+        && !detected.contains(&"account-data-matching".to_string())
+    {
+        detected.push("account-data-matching".to_string());
+    }
     // Signal 3 (cross-instruction staleness): post-CPI read of a financial/order/state field
     // without reload() — the Axelar/Dexalot cross-chain account-staleness pattern.
     // Broader field coverage than has_cpi_after_state_read (includes .order, .command_id, etc.).
     // No instruction-count gate: has_post_cpi_stale_field_read is already very specific
     // (requires confirmed before-CPI read + after-CPI stale read in same function scope).
     if source_patterns.has_post_cpi_stale_field_read
-        && !detected.contains(&"account-data-matching".to_string()) {
-            detected.push("account-data-matching".to_string());
-        }
-    if has_cpi_reload_risk && source_patterns.has_cpi_after_state_read
-        && !detected.contains(&"account-data-matching".to_string()) {
-            detected.push("account-data-matching".to_string());
-        }
+        && !detected.contains(&"account-data-matching".to_string())
+    {
+        detected.push("account-data-matching".to_string());
+    }
+    if has_cpi_reload_risk
+        && source_patterns.has_cpi_after_state_read
+        && !detected.contains(&"account-data-matching".to_string())
+    {
+        detected.push("account-data-matching".to_string());
+    }
     // Signal 4 (cross-chain token-manager staleness): unchecked token-manager/token-mint
     // UncheckedAccount fields passed to invoke_signed without seeds= or has_one validation.
     // This is the Axelar ITS pattern: externally-supplied token manager accounts are passed
     // into a cross-chain CPI without validating their type or ownership — an attacker can
     // substitute a different account between the initial check and the CPI execution.
     // Gated: only fire if there is also a financial instruction (transfer/execute context).
-    if source_patterns.has_unchecked_token_manager_cpi && has_financial_instruction
-        && !detected.contains(&"account-data-matching".to_string()) {
-            detected.push("account-data-matching".to_string());
-        }
+    if source_patterns.has_unchecked_token_manager_cpi
+        && has_financial_instruction
+        && !detected.contains(&"account-data-matching".to_string())
+    {
+        detected.push("account-data-matching".to_string());
+    }
     // Signal 5 (raw Rust unpack_unchecked): non-Anchor programs that call unpack_unchecked
     // or similar _unchecked deserialization functions skip discriminator/type validation.
     // Without checking the account discriminator, a different account type with the same
     // size could be substituted, leading to account-data-matching / type-cosplay attacks.
     // E.g. Solend: assert_uninitialized via T::unpack_unchecked.
     if source_patterns.has_raw_rust_unchecked_calls
-        && !detected.contains(&"account-data-matching".to_string()) {
-            detected.push("account-data-matching".to_string());
-        }
+        && !detected.contains(&"account-data-matching".to_string())
+    {
+        detected.push("account-data-matching".to_string());
+    }
 
     // ── Solitaire account-data-matching and arbitrary-cpi ──
     // Signal: Solitaire framework programs with raw `Info<'b>` fields in FromAccounts
@@ -389,9 +398,10 @@ pub fn collect_detected_categories(
     if source_patterns.has_post_cpi_stale_field_read
         && has_cpi_reload_risk
         && account_reloading_scope
-        && !detected.contains(&"account-reloading".to_string()) {
-            detected.push("account-reloading".to_string());
-        }
+        && !detected.contains(&"account-reloading".to_string())
+    {
+        detected.push("account-reloading".to_string());
+    }
 
     // ── Missing-revalidation ──
     // Tightened: only fire on ONE of two high-confidence combinations:

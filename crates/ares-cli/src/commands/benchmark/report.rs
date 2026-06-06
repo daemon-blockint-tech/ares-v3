@@ -40,7 +40,9 @@ pub fn generate_trident_arena_comparison_md(results: &[BenchmarkResult]) -> Stri
     lines.push("".to_string());
     lines.push("> **IMPORTANT DISCLAIMER**: ARES V3 is a **static analysis triage assistant**, not a replacement for human auditors. Metrics below measure how many **published audit findings** (ground truth) are recalled by automated analysis, plus how many **additional findings** require manual triage. Ground truth is inherently incomplete — auditors miss bugs too.".to_string());
     lines.push("".to_string());
-    lines.push("> **Benchmark Architecture Note**: ARES V3 operates a two-segment benchmark.".to_string());
+    lines.push(
+        "> **Benchmark Architecture Note**: ARES V3 operates a two-segment benchmark.".to_string(),
+    );
     lines.push("".to_string());
 
     // ── SEGMENT A: Stub Regression Suite ──

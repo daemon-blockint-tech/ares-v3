@@ -36,18 +36,21 @@ impl LocalJudge {
             if matches!(
                 cat,
                 VulnerabilityCategory::TypeCosplay | VulnerabilityCategory::OwnershipCheck
-            )
-                && patterns.is_anchor_heavy && patterns.unchecked_fields == 0 {
-                    should_suppress = true;
-                    reason = "Anchor-heavy protocol with fully typed accounts automatically validates discriminator/ownership.".to_string();
-                }
+            ) && patterns.is_anchor_heavy
+                && patterns.unchecked_fields == 0
+            {
+                should_suppress = true;
+                reason = "Anchor-heavy protocol with fully typed accounts automatically validates discriminator/ownership.".to_string();
+            }
 
             // Rule 2: Signer Authorization
             if matches!(cat, VulnerabilityCategory::SignerAuthorization)
-                && patterns.is_anchor_heavy && !patterns.has_raw_handler {
-                    should_suppress = true;
-                    reason = "Anchor-heavy protocol with no raw AccountInfo handlers uses Anchor's Signer<'info> for validation.".to_string();
-                }
+                && patterns.is_anchor_heavy
+                && !patterns.has_raw_handler
+            {
+                should_suppress = true;
+                reason = "Anchor-heavy protocol with no raw AccountInfo handlers uses Anchor's Signer<'info> for validation.".to_string();
+            }
 
             // Rule 3: Arbitrary CPI
             if matches!(cat, VulnerabilityCategory::ArbitraryCpi) {
@@ -115,7 +118,6 @@ impl LocalJudge {
 mod tests {
     use super::*;
     use ares_core::{CodeLocation, Finding, Severity, VulnerabilityCategory};
-    
 
     fn dummy_finding(category: VulnerabilityCategory) -> Finding {
         Finding {

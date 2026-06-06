@@ -296,10 +296,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
         }
 
         // Detect Solitaire #[derive(FromAccounts)] structs
-        let has_derive_from_accounts = node
-            .attrs
-            .iter()
-            .any(is_derive_from_accounts_attr);
+        let has_derive_from_accounts = node.attrs.iter().any(is_derive_from_accounts_attr);
 
         if has_derive_from_accounts {
             let mut account_struct = SolitaireAccountStruct {
@@ -426,8 +423,7 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 let param_name = pat_to_string(pat);
                 let ty_str = quote::quote!(#ty).to_string();
                 let is_ctx = ty_str.contains("Context<") || ty_str.contains("ExecutionContext");
-                let is_account_info =
-                    ty_str.contains("AccountInfo") || ty_str.contains("Info<");
+                let is_account_info = ty_str.contains("AccountInfo") || ty_str.contains("Info<");
 
                 handler.params.push(HandlerParam {
                     name: param_name.clone(),
@@ -544,7 +540,8 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                         line: node.span().start().line,
                         description: "Call to `_unchecked` function bypasses validation. \
                             The `_unchecked` naming convention signals that the checked \
-                            variant performs security validation this version skips.".to_string(),
+                            variant performs security validation this version skips."
+                            .to_string(),
                         confidence: 0.65,
                     });
                 }
@@ -564,9 +561,11 @@ impl<'a, 'ast> Visit<'ast> for SolanaVisitor<'a> {
                 severity: "Medium".to_string(),
                 file: self.path.clone(),
                 line: node.span().start().line,
-                description: "Unsafe byte-level mutation/cast via `bytemuck`. bytes_of_mut bypasses \
+                description:
+                    "Unsafe byte-level mutation/cast via `bytemuck`. bytes_of_mut bypasses \
                     type checking for account mutation; cast/cast_slice reinterprets bytes \
-                    without validation. Use Anchor's typed account system or explicit checks.".to_string(),
+                    without validation. Use Anchor's typed account system or explicit checks."
+                        .to_string(),
                 confidence: 0.75,
             });
         }

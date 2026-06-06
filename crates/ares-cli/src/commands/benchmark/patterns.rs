@@ -162,9 +162,10 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             }
             if in_accounts_struct
                 && (line.trim().starts_with("pub ") || line.trim().starts_with("#[account("))
-                && (line.contains("AccountInfo<") || line.contains("UncheckedAccount")) {
-                    patterns.has_account_info_unchecked = true;
-                }
+                && (line.contains("AccountInfo<") || line.contains("UncheckedAccount"))
+            {
+                patterns.has_account_info_unchecked = true;
+            }
             if in_accounts_struct && line.trim().starts_with("}") {
                 in_accounts_struct = false;
             }
@@ -232,25 +233,27 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
         if !is_test_or_util_file
             && code.contains("try_from_slice")
             && !code.contains("discriminator")
-            && !code.contains("Account::try_from") && !code.contains("AccountLoad") {
-                let safe_prefixes = [
-                    "Pubkey::try_from_slice",
-                    "u128::try_from_slice",
-                    "u64::try_from_slice",
-                    "i128::try_from_slice",
-                    "i64::try_from_slice",
-                    "BigNum::try_from_slice",
-                ];
-                let has_unsafe_try_from = lines.iter().any(|l| {
-                    l.contains("try_from_slice")
-                        && !safe_prefixes.iter().any(|p| l.contains(p))
-                        && !l.trim().starts_with("//")
-                        && !l.contains("Account::try_from")
-                });
-                if has_unsafe_try_from {
-                    patterns.has_try_from_slice = true;
-                }
+            && !code.contains("Account::try_from")
+            && !code.contains("AccountLoad")
+        {
+            let safe_prefixes = [
+                "Pubkey::try_from_slice",
+                "u128::try_from_slice",
+                "u64::try_from_slice",
+                "i128::try_from_slice",
+                "i64::try_from_slice",
+                "BigNum::try_from_slice",
+            ];
+            let has_unsafe_try_from = lines.iter().any(|l| {
+                l.contains("try_from_slice")
+                    && !safe_prefixes.iter().any(|p| l.contains(p))
+                    && !l.trim().starts_with("//")
+                    && !l.contains("Account::try_from")
+            });
+            if has_unsafe_try_from {
+                patterns.has_try_from_slice = true;
             }
+        }
 
         // ── Unchecked numeric downcast (u128→u64, etc.) ──
         // Require u128 or i128 to also be present: `i64 as u64` (e.g. timestamp casts)
@@ -354,11 +357,11 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                     || l_lower.contains("program.clone()")
                     || l_lower.contains("handler"))
                     && !l_lower.contains("token_program")
-                        && !l_lower.contains("system_program")
-                        && !l_lower.contains("associated_token")
-                    {
-                        patterns.has_cpi_context_new_variable = true;
-                    }
+                    && !l_lower.contains("system_program")
+                    && !l_lower.contains("associated_token")
+                {
+                    patterns.has_cpi_context_new_variable = true;
+                }
             }
         }
 
@@ -506,9 +509,11 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
             let has_named_pda = body.to_lowercase().contains("callback_pda")
                 || body.to_lowercase().contains("pool_authority_pda");
             if (has_pda_comment || has_pda_field || has_named_pda)
-                && !body_code.contains("has_one") && !body_code.contains("constraint =") {
-                    patterns.has_pda_without_constraint = true;
-                }
+                && !body_code.contains("has_one")
+                && !body_code.contains("constraint =")
+            {
+                patterns.has_pda_without_constraint = true;
+            }
         }
 
         // ── init_if_needed with fixed / literal seeds (re-initializable) ──
@@ -1305,10 +1310,11 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                             .unwrap_or(b.as_str());
                         if a_stripped == b_stripped && !a_stripped.is_empty() && (a != b)
                         // only if they actually differ (suffixes were stripped)
-                            && no_key_constraint {
-                                patterns.has_duplicate_mutable_pair = true;
-                                break 'dup_outer;
-                            }
+                            && no_key_constraint
+                        {
+                            patterns.has_duplicate_mutable_pair = true;
+                            break 'dup_outer;
+                        }
                         // Pattern 2: same type name (exact match after stripping numeric/underscore suffix)
                         // e.g., "user_account_1" and "user_account_2" share base "user_account"
                         // NOTE: substring containment (e.g., "vault" in "vault_authority") is intentionally
@@ -1318,10 +1324,11 @@ pub fn scan_source_patterns(graph: &ares_mapper::ProgramGraph) -> SourcePatterns
                         if !a_base.is_empty() && !b_base.is_empty()
                             && a_base == b_base  // exact base match only, not substring
                             && a != b
-                            && no_key_constraint {
-                                patterns.has_duplicate_mutable_pair = true;
-                                break 'dup_outer;
-                            }
+                            && no_key_constraint
+                        {
+                            patterns.has_duplicate_mutable_pair = true;
+                            break 'dup_outer;
+                        }
                     }
                 }
             }
