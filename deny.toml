@@ -19,7 +19,7 @@ allow = [
 
 [bans]
 multiple-versions = "warn"
-wildcard-versions = "warn"
+wildcards = "warn"
 
 [sources]
 unknown-registry = "deny"
