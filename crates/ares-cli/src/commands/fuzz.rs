@@ -1,6 +1,6 @@
-use std::path::Path;
 use ares_core::AresResult;
 use ares_trident::TridentTool;
+use std::path::Path;
 use tracing::info;
 
 /// Run fuzzing campaign with Trident.
@@ -11,7 +11,10 @@ pub async fn execute(
     deterministic: bool,
 ) -> AresResult<()> {
     info!("ARES Fuzz Campaign");
-    info!("Target: {:?} | Iterations: {} | Deterministic: {}", path, iterations, deterministic);
+    info!(
+        "Target: {:?} | Iterations: {} | Deterministic: {}",
+        path, iterations, deterministic
+    );
 
     let trident = TridentTool::new(None)?;
     let trident = trident.with_working_dir(path.to_path_buf());
@@ -40,14 +43,24 @@ pub async fn execute(
     };
 
     for target in targets {
-        info!("Running fuzz target: {} ({} iterations)", target, iterations);
+        info!(
+            "Running fuzz target: {} ({} iterations)",
+            target, iterations
+        );
         let result = trident.fuzz_run(&target, iterations, 3600).await?;
 
         if result.success {
-            info!("  [PASS] {} — no crashes after {} iterations", target, result.iterations_ran);
+            info!(
+                "  [PASS] {} — no crashes after {} iterations",
+                target, result.iterations_ran
+            );
         } else {
-            info!("  [FAIL] {} — {} crashes, {} invariant violations", 
-                target, result.crashes.len(), result.invariant_violations.len());
+            info!(
+                "  [FAIL] {} — {} crashes, {} invariant violations",
+                target,
+                result.crashes.len(),
+                result.invariant_violations.len()
+            );
             for crash in &result.crashes {
                 info!("    Crash: {}", crash);
             }

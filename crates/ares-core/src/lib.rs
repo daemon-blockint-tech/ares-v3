@@ -45,6 +45,114 @@ pub enum AresError {
     Serialization(#[from] serde_json::Error),
 }
 
+/// Vulnerability category for a finding.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VulnerabilityCategory {
+    TypeCosplay,
+    OwnershipCheck,
+    SignerAuthorization,
+    ArbitraryCpi,
+    InitializationFrontrunning,
+    ReentrancyRisk,
+    DuplicateMutableAccounts,
+    ArithmeticOverflow,
+    CloseAccount,
+    AccountReloading,
+    ReInitialization,
+    RevivalAttack,
+    AccountDataMatching,
+    PdaPrivileges,
+    FuzzingCrash,
+    InvariantViolation,
+    MissingSigner,
+    MissingRevalidation,
+    UncheckedCast,
+    Generic,
+}
+
+impl VulnerabilityCategory {
+    /// Returns all known categories.
+    pub fn all() -> &'static [VulnerabilityCategory] {
+        &[
+            Self::TypeCosplay,
+            Self::OwnershipCheck,
+            Self::SignerAuthorization,
+            Self::ArbitraryCpi,
+            Self::InitializationFrontrunning,
+            Self::ReentrancyRisk,
+            Self::DuplicateMutableAccounts,
+            Self::ArithmeticOverflow,
+            Self::CloseAccount,
+            Self::AccountReloading,
+            Self::ReInitialization,
+            Self::RevivalAttack,
+            Self::AccountDataMatching,
+            Self::PdaPrivileges,
+            Self::FuzzingCrash,
+            Self::InvariantViolation,
+            Self::MissingSigner,
+            Self::MissingRevalidation,
+            Self::UncheckedCast,
+            Self::Generic,
+        ]
+    }
+
+    /// Parse a category from a string, returning `None` if unknown.
+    pub fn from_str_checked(s: &str) -> Option<Self> {
+        match s {
+            "type-cosplay" => Some(Self::TypeCosplay),
+            "ownership-check" => Some(Self::OwnershipCheck),
+            "signer-authorization" | "missing-signer" => Some(Self::SignerAuthorization),
+            "arbitrary-cpi" => Some(Self::ArbitraryCpi),
+            "initialization-frontrunning" => Some(Self::InitializationFrontrunning),
+            "reentrancy-risk" | "reentrancy" => Some(Self::ReentrancyRisk),
+            "duplicate-mutable-accounts" => Some(Self::DuplicateMutableAccounts),
+            "arithmetic-overflow" => Some(Self::ArithmeticOverflow),
+            "close-account" => Some(Self::CloseAccount),
+            "account-reloading" | "revival-attack" | "re-initialization" => {
+                Some(Self::AccountReloading)
+            }
+            "account-data-matching" => Some(Self::AccountDataMatching),
+            "pda-privileges" => Some(Self::PdaPrivileges),
+            "fuzzing-crash" | "fuzzing" => Some(Self::FuzzingCrash),
+            "invariant-violation" | "invariant" => Some(Self::InvariantViolation),
+            "missing-revalidation" => Some(Self::MissingRevalidation),
+            "unchecked-cast" => Some(Self::UncheckedCast),
+            "generic" => Some(Self::Generic),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for VulnerabilityCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::TypeCosplay => "type-cosplay",
+            Self::OwnershipCheck => "ownership-check",
+            Self::SignerAuthorization => "signer-authorization",
+            Self::ArbitraryCpi => "arbitrary-cpi",
+            Self::InitializationFrontrunning => "initialization-frontrunning",
+            Self::ReentrancyRisk => "reentrancy-risk",
+            Self::DuplicateMutableAccounts => "duplicate-mutable-accounts",
+            Self::ArithmeticOverflow => "arithmetic-overflow",
+            Self::CloseAccount => "close-account",
+            Self::AccountReloading => "account-reloading",
+            Self::ReInitialization => "re-initialization",
+            Self::RevivalAttack => "revival-attack",
+            Self::AccountDataMatching => "account-data-matching",
+            Self::PdaPrivileges => "pda-privileges",
+            Self::FuzzingCrash => "fuzzing-crash",
+            Self::InvariantViolation => "invariant-violation",
+            Self::MissingSigner => "missing-signer",
+            Self::MissingRevalidation => "missing-revalidation",
+            Self::UncheckedCast => "unchecked-cast",
+            Self::Generic => "generic",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 /// Severity level of a vulnerability finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Severity {
@@ -74,7 +182,7 @@ pub struct Finding {
     pub title: String,
     pub description: String,
     pub severity: Severity,
-    pub category: String,
+    pub category: VulnerabilityCategory,
     pub location: CodeLocation,
     pub proof_of_concept: Option<PathBuf>,
     pub recommendation: String,
@@ -185,19 +293,14 @@ pub struct BenchmarkResult {
 }
 
 /// LLM provider selection for ARES-as-Judge.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LlmProvider {
     Openai,
     Anthropic,
     Ollama,
+    #[default]
     Disabled,
-}
-
-impl Default for LlmProvider {
-    fn default() -> Self {
-        LlmProvider::Disabled
-    }
 }
 
 /// Configuration for ARES CLI.
@@ -258,5 +361,218 @@ impl Default for AresConfig {
             mainnet_rpc_url: Some("https://api.mainnet-beta.solana.com".to_string()),
             mainnet_clone_accounts: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_severity_display() {
+        assert_eq!(Severity::Critical.to_string(), "Critical");
+        assert_eq!(Severity::High.to_string(), "High");
+        assert_eq!(Severity::Medium.to_string(), "Medium");
+        assert_eq!(Severity::Low.to_string(), "Low");
+        assert_eq!(Severity::Informational.to_string(), "Informational");
+    }
+
+    #[test]
+    fn test_severity_serde_roundtrip() {
+        let sev = Severity::Critical;
+        let json = serde_json::to_string(&sev).unwrap();
+        let back: Severity = serde_json::from_str(&json).unwrap();
+        assert_eq!(sev, back);
+    }
+
+    #[test]
+    fn test_vulnerability_category_all_contains_all() {
+        let all = VulnerabilityCategory::all();
+        assert!(all.contains(&VulnerabilityCategory::TypeCosplay));
+        assert!(all.contains(&VulnerabilityCategory::OwnershipCheck));
+        assert!(all.contains(&VulnerabilityCategory::Generic));
+        assert_eq!(all.len(), 20);
+    }
+
+    #[test]
+    fn test_vulnerability_category_roundtrip() {
+        // Only test categories that roundtrip uniquely (not aliased via from_str_checked)
+        let unique_cats = [
+            VulnerabilityCategory::TypeCosplay,
+            VulnerabilityCategory::OwnershipCheck,
+            VulnerabilityCategory::SignerAuthorization,
+            VulnerabilityCategory::ArbitraryCpi,
+            VulnerabilityCategory::InitializationFrontrunning,
+            VulnerabilityCategory::ReentrancyRisk,
+            VulnerabilityCategory::DuplicateMutableAccounts,
+            VulnerabilityCategory::ArithmeticOverflow,
+            VulnerabilityCategory::CloseAccount,
+            VulnerabilityCategory::AccountReloading,
+            VulnerabilityCategory::AccountDataMatching,
+            VulnerabilityCategory::PdaPrivileges,
+            VulnerabilityCategory::FuzzingCrash,
+            VulnerabilityCategory::InvariantViolation,
+            VulnerabilityCategory::MissingRevalidation,
+            VulnerabilityCategory::UncheckedCast,
+            VulnerabilityCategory::Generic,
+        ];
+        for cat in &unique_cats {
+            let display = cat.to_string();
+            let parsed = VulnerabilityCategory::from_str_checked(&display);
+            assert_eq!(
+                parsed,
+                Some(cat.clone()),
+                "Failed to roundtrip: {}",
+                display
+            );
+        }
+    }
+
+    #[test]
+    fn test_vulnerability_category_display() {
+        assert_eq!(
+            VulnerabilityCategory::TypeCosplay.to_string(),
+            "type-cosplay"
+        );
+        assert_eq!(
+            VulnerabilityCategory::SignerAuthorization.to_string(),
+            "signer-authorization"
+        );
+        assert_eq!(
+            VulnerabilityCategory::ArbitraryCpi.to_string(),
+            "arbitrary-cpi"
+        );
+        assert_eq!(VulnerabilityCategory::Generic.to_string(), "generic");
+    }
+
+    #[test]
+    fn test_vulnerability_category_serde() {
+        let cat = VulnerabilityCategory::ReentrancyRisk;
+        let json = serde_json::to_string(&cat).unwrap();
+        assert_eq!(json, "\"reentrancy-risk\"");
+        let back: VulnerabilityCategory = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, cat);
+    }
+
+    #[test]
+    fn test_vulnerability_category_from_str_aliases() {
+        assert_eq!(
+            VulnerabilityCategory::from_str_checked("reentrancy-risk"),
+            Some(VulnerabilityCategory::ReentrancyRisk)
+        );
+        assert_eq!(
+            VulnerabilityCategory::from_str_checked("reentrancy"),
+            Some(VulnerabilityCategory::ReentrancyRisk)
+        );
+        assert_eq!(
+            VulnerabilityCategory::from_str_checked("unknown-category"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_finding_default_values() {
+        let finding = Finding {
+            id: "F-001".to_string(),
+            title: "Test".to_string(),
+            description: "Desc".to_string(),
+            severity: Severity::High,
+            category: VulnerabilityCategory::OwnershipCheck,
+            location: CodeLocation::default(),
+            proof_of_concept: None,
+            recommendation: "Fix".to_string(),
+            references: vec![],
+            confidence: 0.8,
+        };
+        assert_eq!(finding.id, "F-001");
+        assert_eq!(finding.category, VulnerabilityCategory::OwnershipCheck);
+        assert_eq!(finding.confidence, 0.8);
+    }
+
+    #[test]
+    fn test_code_location_default() {
+        let loc = CodeLocation::default();
+        assert!(loc.file.as_os_str().is_empty());
+        assert!(loc.line_start.is_none());
+        assert!(loc.line_end.is_none());
+    }
+
+    #[test]
+    fn test_ares_error_display() {
+        let err = AresError::Config("missing field".to_string());
+        assert_eq!(err.to_string(), "Config error: missing field");
+
+        let err = AresError::Parse("invalid json".to_string());
+        assert_eq!(err.to_string(), "Parse error: invalid json");
+
+        let err = AresError::Execution("timeout".to_string());
+        assert_eq!(err.to_string(), "Execution failed: timeout");
+    }
+
+    #[test]
+    fn test_benchmark_result_defaults() {
+        let result = BenchmarkResult {
+            protocol_name: "test".to_string(),
+            source: "stub".to_string(),
+            total_critical_high: 5,
+            detected_critical_high: 4,
+            false_positives: 1,
+            false_negatives: 1,
+            known_audit_recall: 0.8,
+            fp_rate: 0.2,
+            poc_success_rate: 0.0,
+            execution_time_secs: 10,
+            economic_score_lamports: 1_000_000,
+            precision: 0.8,
+            recall: 0.8,
+            f1_score: 0.8,
+            detected_categories: vec!["type-cosplay".to_string()],
+            total_findings: 5,
+        };
+        assert_eq!(result.protocol_name, "test");
+        assert_eq!(result.detected_categories.len(), 1);
+    }
+
+    #[test]
+    fn test_llm_provider_default_is_disabled() {
+        let provider = LlmProvider::default();
+        assert_eq!(provider, LlmProvider::Disabled);
+    }
+
+    #[test]
+    fn test_config_default() {
+        let config = AresConfig::default();
+        assert_eq!(config.llm_provider, LlmProvider::Disabled);
+        assert!(!config.llm_judge_enabled);
+        assert_eq!(config.llm_model, "claude-3-5-sonnet");
+    }
+
+    #[test]
+    fn test_report_summary_default() {
+        let summary = ReportSummary::default();
+        assert_eq!(summary.total_findings, 0);
+        assert_eq!(summary.total_economic_impact_lamports, 0);
+    }
+
+    #[test]
+    fn test_serde_json_finding() {
+        let finding = Finding {
+            id: "F-001".to_string(),
+            title: "Test".to_string(),
+            description: "Desc".to_string(),
+            severity: Severity::Critical,
+            category: VulnerabilityCategory::ArbitraryCpi,
+            location: CodeLocation::default(),
+            proof_of_concept: None,
+            recommendation: "Fix".to_string(),
+            references: vec!["ref1".to_string()],
+            confidence: 0.95,
+        };
+        let json = serde_json::to_string_pretty(&finding).unwrap();
+        let back: Finding = serde_json::from_str(&json).unwrap();
+        assert_eq!(finding.id, back.id);
+        assert_eq!(finding.category, back.category);
+        assert_eq!(finding.severity, back.severity);
+        assert_eq!(finding.references, back.references);
     }
 }

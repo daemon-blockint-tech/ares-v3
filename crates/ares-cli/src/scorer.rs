@@ -1,4 +1,4 @@
-use ares_core::{Finding, Severity};
+use ares_core::{Finding, Severity, VulnerabilityCategory};
 use tracing::info;
 
 /// Economic exploit scorer (SCONE-bench inspired).
@@ -29,12 +29,15 @@ impl ExploitScorer {
             Severity::Informational => 1_000_000u64,
         };
 
-        let multiplier = match finding.category.as_str() {
-            "reentrancy-risk" | "arbitrary-cpi" | "invariant-violation" => 10,
-            "signer-authorization" | "missing-signer" | "ownership-check" | "missing-owner" => 5,
-            "initialization-frontrunning" | "re-initialization" | "revival-attack" | "account-reloading" => 3,
-            "fuzzing-crash" => 8,
-            "missing-revalidation" | "state-transition-gap" => 4,
+        let multiplier = match &finding.category {
+            VulnerabilityCategory::ReentrancyRisk
+            | VulnerabilityCategory::ArbitraryCpi
+            | VulnerabilityCategory::InvariantViolation => 10,
+            VulnerabilityCategory::SignerAuthorization | VulnerabilityCategory::OwnershipCheck => 5,
+            VulnerabilityCategory::InitializationFrontrunning
+            | VulnerabilityCategory::AccountReloading => 3,
+            VulnerabilityCategory::FuzzingCrash => 8,
+            VulnerabilityCategory::MissingRevalidation => 4,
             _ => 1,
         };
 

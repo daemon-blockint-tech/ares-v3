@@ -12,38 +12,58 @@ async fn test_benchmark_ground_truth_real_protocols() {
     // Clean up from prior runs
     let _ = tokio::fs::remove_file(&output).await;
 
-    let result = ares_cli::commands::benchmark::execute(
-        &dataset,
-        None,              // no protocol filter — test all including stubs
-        true,              // compare baseline
+    let result = ares_v3::commands::benchmark::execute(
+        &dataset, None, // no protocol filter — test all including stubs
+        true, // compare baseline
         &output,
     )
     .await;
 
-    assert!(result.is_ok(), "Benchmark execution should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Benchmark execution should succeed: {:?}",
+        result.err()
+    );
 
     let content = tokio::fs::read_to_string(&output)
         .await
         .expect("Benchmark should have written output file");
 
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .expect("Benchmark output should be valid JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&content).expect("Benchmark output should be valid JSON");
 
-    let results = json.get("results").and_then(|r| r.as_array())
+    let results = json
+        .get("results")
+        .and_then(|r| r.as_array())
         .expect("JSON should contain 'results' array");
 
     // Verify all publicly available real-world protocols are present
-    let real_protocols = ["axelar", "dexalot", "bert-staking", "pump-science", "metadao"];
+    let real_protocols = [
+        "axelar",
+        "dexalot",
+        "bert-staking",
+        "pump-science",
+        "metadao",
+    ];
     for name in &real_protocols {
-        let entry = results.iter().find(|r| {
-            r.get("protocol_name").and_then(|n| n.as_str()) == Some(*name)
-        });
-        assert!(entry.is_some(), "Benchmark should include {} protocol results", name);
+        let entry = results
+            .iter()
+            .find(|r| r.get("protocol_name").and_then(|n| n.as_str()) == Some(*name));
+        assert!(
+            entry.is_some(),
+            "Benchmark should include {} protocol results",
+            name
+        );
 
         let entry = entry.unwrap();
         assert!(
-            entry.get("total_critical_high").and_then(|v| v.as_u64()).unwrap_or(0) > 0,
-            "{} should have expected critical/high count > 0", name
+            entry
+                .get("total_critical_high")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+                > 0,
+            "{} should have expected critical/high count > 0",
+            name
         );
 
         let precision = entry.get("precision").and_then(|v| v.as_f64());
@@ -52,15 +72,18 @@ async fn test_benchmark_ground_truth_real_protocols() {
 
         assert!(
             precision.is_some(),
-            "{} should have precision when ground truth is loaded", name
+            "{} should have precision when ground truth is loaded",
+            name
         );
         assert!(
             recall.is_some(),
-            "{} should have recall when ground truth is loaded", name
+            "{} should have recall when ground truth is loaded",
+            name
         );
         assert!(
             f1.is_some(),
-            "{} should have f1_score when ground truth is loaded", name
+            "{} should have f1_score when ground truth is loaded",
+            name
         );
     }
 

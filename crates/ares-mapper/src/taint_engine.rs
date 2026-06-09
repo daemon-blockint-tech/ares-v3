@@ -1,19 +1,19 @@
 use std::collections::{HashMap, HashSet};
-use syn::{Expr, ExprMethodCall, ExprPath, ExprReference, Stmt, Block, Pat, PatIdent};
 use syn::visit::Visit;
+use syn::{Block, Expr, ExprMethodCall, ExprPath, ExprReference, Pat, PatIdent, Stmt};
 
 /// Phase-3 Taint Engine: tracks data flow from untrusted sources to sensitive sinks.
-/// 
+///
 /// Sources (UNTRUSTED / RED):
 /// - AccountInfo / Info<'b> parameters (raw, unvalidated)
 /// - Instruction data (raw bytes before deserialization)
 /// - CPI caller accounts
-/// 
+///
 /// Safe wrappers (sanitize taint -> CLEAN / GREEN):
 /// - checked_add, saturating_add
 /// - Anchor typed accounts: Account<'info, T> (has discriminator)
 /// - Signer<'info>, Sysvar<'b, T>
-/// 
+///
 /// Sinks (must receive CLEAN data):
 /// - invoke() / invoke_signed() — program_id must be validated/hardcoded
 /// - try_from_slice() — must have discriminator check
@@ -39,12 +39,12 @@ pub struct TaintState {
 
 #[derive(Debug, Clone)]
 pub enum TaintSource {
-    RawAccountInfo,      // Info<'b>, AccountInfo (no validation wrapper)
-    InstructionData,     // raw instruction bytes
-    CpiCaller,           // accounts passed from CPI
-    UncheckedField,      // struct field without Signer/Sysvar/Constraint
-    Propagated(String),  // propagated from another tainted var
-    Clean,               // known safe (checked_add, typed account, etc.)
+    RawAccountInfo,     // Info<'b>, AccountInfo (no validation wrapper)
+    InstructionData,    // raw instruction bytes
+    CpiCaller,          // accounts passed from CPI
+    UncheckedField,     // struct field without Signer/Sysvar/Constraint
+    Propagated(String), // propagated from another tainted var
+    Clean,              // known safe (checked_add, typed account, etc.)
 }
 
 #[derive(Debug, Clone)]
@@ -81,10 +81,10 @@ impl TaintEngine {
 
     /// Mark a parameter as tainted based on its type.
     pub fn mark_param(&mut self, name: &str, ty: &str) {
-        let is_raw = ty.contains("AccountInfo") 
+        let is_raw = ty.contains("AccountInfo")
             || (ty.contains("Info<") && !ty.contains("Signer<") && !ty.contains("Sysvar<"));
         let is_instruction_data = ty.contains("[u8]") || name == "data" || name.ends_with("_data");
-        
+
         let source = if is_raw {
             TaintSource::RawAccountInfo
         } else if is_instruction_data {
@@ -93,13 +93,19 @@ impl TaintEngine {
             TaintSource::Clean
         };
 
-        let tainted = matches!(source, TaintSource::RawAccountInfo | TaintSource::InstructionData);
-
-        self.vars.insert(name.to_string(), TaintState {
-            is_tainted: tainted,
+        let tainted = matches!(
             source,
-            path: vec![name.to_string()],
-        });
+            TaintSource::RawAccountInfo | TaintSource::InstructionData
+        );
+
+        self.vars.insert(
+            name.to_string(),
+            TaintState {
+                is_tainted: tainted,
+                source,
+                path: vec![name.to_string()],
+            },
+        );
     }
 
     /// Mark struct fields as tainted based on prior AST analysis.
@@ -126,10 +132,10 @@ impl TaintEngine {
                     path: vec![],
                 })
             }
-            Expr::Reference(ExprReference { expr: inner, .. }) => {
-                self.expr_taint(inner)
-            }
-            Expr::MethodCall(ExprMethodCall { receiver, method, .. }) => {
+            Expr::Reference(ExprReference { expr: inner, .. }) => self.expr_taint(inner),
+            Expr::MethodCall(ExprMethodCall {
+                receiver, method, ..
+            }) => {
                 let recv_taint = self.expr_taint(receiver);
                 // Safe wrapper: if method is checked_*, saturating_*, etc., result is CLEAN
                 let method_name = method.to_string();
@@ -147,7 +153,10 @@ impl TaintEngine {
                         if fields.contains(&method_name) {
                             return TaintState {
                                 is_tainted: true,
-                                source: TaintSource::Propagated(format!("{}.{} (tainted field)", base, method_name)),
+                                source: TaintSource::Propagated(format!(
+                                    "{}.{} (tainted field)",
+                                    base, method_name
+                                )),
                                 path: {
                                     let mut p = recv_taint.path;
                                     p.push(method_name.clone());
@@ -160,16 +169,15 @@ impl TaintEngine {
                 recv_taint
             }
             Expr::Field(field_expr) => {
-                let base_taint = self.expr_taint(&field_expr.base);
                 // Handle field access: expr.field
                 // For now, propagate base taint
-                base_taint
+                self.expr_taint(&field_expr.base)
             }
             _ => TaintState {
                 is_tainted: false,
                 source: TaintSource::Clean,
                 path: vec![],
-            }
+            },
         }
     }
 
@@ -200,7 +208,7 @@ impl TaintEngine {
             Expr::Call(call) => {
                 let _func_taint = self.expr_taint(&call.func);
                 let func_name = expr_to_string(&call.func);
-                
+
                 // Sink: invoke / invoke_signed
                 if func_name.contains("invoke") || func_name.contains("invoke_signed") {
                     // Check arguments for tainted program_id / accounts
@@ -222,7 +230,7 @@ impl TaintEngine {
                         }
                     }
                 }
-                
+
                 // Sink: try_from_slice without discriminator
                 // Exclude Pubkey::try_from_slice and primitive numeric types — these
                 // parse fixed-format on-chain data, not account type substitution attacks.
@@ -256,7 +264,7 @@ impl TaintEngine {
             Expr::Assign(assign) => {
                 let left_str = expr_to_string(&assign.left);
                 let right_taint = self.expr_taint(&assign.right);
-                
+
                 // Sink: owner = untrusted
                 if left_str.contains("owner") && right_taint.is_tainted {
                     self.findings.push(TaintFinding {
@@ -272,7 +280,7 @@ impl TaintEngine {
                         line: 0,
                     });
                 }
-                
+
                 // Propagation
                 if let Expr::Path(ExprPath { path, .. }) = assign.left.as_ref() {
                     let name = path_to_string(path);
@@ -293,11 +301,23 @@ impl TaintEngine {
                             category: "unchecked-cast".to_string(),
                             severity: "High".to_string(),
                             sink: format!("arithmetic {}", op_str),
-                            tainted_var: format!("{:?}", if left_taint.is_tainted { left_taint.source.clone() } else { right_taint.source.clone() }),
+                            tainted_var: format!(
+                                "{:?}",
+                                if left_taint.is_tainted {
+                                    left_taint.source.clone()
+                                } else {
+                                    right_taint.source.clone()
+                                }
+                            ),
                             description: format!(
                                 "Arithmetic operation `{}` on tainted data ({:?}). \
                                 Use checked_add / checked_mul / saturating_* to prevent overflow.",
-                                op_str, if left_taint.is_tainted { &left_taint.source } else { &right_taint.source }
+                                op_str,
+                                if left_taint.is_tainted {
+                                    &left_taint.source
+                                } else {
+                                    &right_taint.source
+                                }
                             ),
                             line: 0,
                         });
@@ -348,7 +368,9 @@ impl TaintEngine {
                     self.process_expr(&arm.body);
                 }
             }
-            Expr::MethodCall(ExprMethodCall { receiver, method, .. }) => {
+            Expr::MethodCall(ExprMethodCall {
+                receiver, method, ..
+            }) => {
                 let recv = self.expr_taint(receiver);
                 let method_name = method.to_string();
                 // Safe wrapper detection: if method is checked_*, result is CLEAN
@@ -375,7 +397,11 @@ impl TaintEngine {
 }
 
 fn path_to_string(path: &syn::Path) -> String {
-    path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("::")
+    path.segments
+        .iter()
+        .map(|s| s.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 fn expr_to_string(expr: &Expr) -> String {
@@ -387,7 +413,7 @@ impl<'a> Visit<'a> for TaintEngine {
         self.process_expr(node);
         syn::visit::visit_expr(self, node);
     }
-    
+
     fn visit_stmt(&mut self, node: &'a Stmt) {
         self.process_stmt(node);
         syn::visit::visit_stmt(self, node);

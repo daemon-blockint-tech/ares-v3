@@ -1,5 +1,5 @@
 use ares_core::AresResult;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// Check system dependencies and environment.
 pub async fn execute() -> AresResult<()> {
@@ -31,7 +31,7 @@ pub async fn execute() -> AresResult<()> {
                     .arg("--version")
                     .output()
                     .await;
-                
+
                 let version = match version_output {
                     Ok(v) => {
                         let s = String::from_utf8_lossy(&v.stdout);
@@ -43,15 +43,26 @@ pub async fn execute() -> AresResult<()> {
                 if required {
                     info!("  [OK] {}: {} ({})", desc, version, path.display());
                 } else {
-                    info!("  [OK] {} (optional): {} ({})", desc, version, path.display());
+                    info!(
+                        "  [OK] {} (optional): {} ({})",
+                        desc,
+                        version,
+                        path.display()
+                    );
                 }
             }
             Err(_) => {
                 if required {
-                    error!("  [MISSING] {} ({}): Required but not found on PATH", desc, cmd);
+                    error!(
+                        "  [MISSING] {} ({}): Required but not found on PATH",
+                        desc, cmd
+                    );
                     required_missing += 1;
                 } else {
-                    warn!("  [MISSING] {} ({}): Optional, install if needed", desc, cmd);
+                    warn!(
+                        "  [MISSING] {} ({}): Optional, install if needed",
+                        desc, cmd
+                    );
                     optional_missing += 1;
                 }
             }
@@ -59,17 +70,21 @@ pub async fn execute() -> AresResult<()> {
     }
 
     info!("=========================================");
-    
+
     if required_missing > 0 {
-        error!("Doctor found {} required dependencies missing!", required_missing);
+        error!(
+            "Doctor found {} required dependencies missing!",
+            required_missing
+        );
         info!("\nInstall missing tools:");
         info!("  - Rust: https://rustup.rs/");
         info!("  - Solana CLI: https://docs.solanalabs.com/cli/install");
         info!("  - Anchor: https://www.anchor-lang.com/docs/installation");
         info!("  - Trident: cargo install trident-cli");
-        return Err(ares_core::AresError::ToolMissing(
-            format!("{} required dependencies missing", required_missing)
-        ));
+        return Err(ares_core::AresError::ToolMissing(format!(
+            "{} required dependencies missing",
+            required_missing
+        )));
     } else {
         info!("All required dependencies are available.");
     }
@@ -86,7 +101,7 @@ pub async fn execute() -> AresResult<()> {
         .await
         .map(|o| o.status.success())
         .unwrap_or(false);
-    
+
     if docker_running {
         info!("Docker daemon is running.");
     } else {

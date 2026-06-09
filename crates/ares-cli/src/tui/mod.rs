@@ -20,17 +20,14 @@ pub async fn run_tui(config: &AresConfig) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Create app state
-    let mut app = app::App::new(config.clone());
+    let mut app = app::App::new(config.clone())?;
 
     // Start event loop
     let res = run_app(&mut terminal, &mut app).await;
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
     if let Err(err) = res {

@@ -1,4 +1,4 @@
-use ares_core::{Finding, Severity};
+use ares_core::{Finding, Severity, VulnerabilityCategory};
 use ares_mapper::{AccountEffect, InstructionNode, ProgramGraph};
 use tracing::{info, warn};
 
@@ -45,7 +45,7 @@ impl<'a> SemanticValidator<'a> {
                     // Downgraded but kept
                     warn!("Finding {} downgraded: {}", f.id, reason);
                     // Lower confidence slightly
-                    f.confidence = f.confidence * 0.9;
+                    f.confidence *= 0.9;
                     validated.push(f);
                 }
                 ValidationResult {
@@ -56,10 +56,18 @@ impl<'a> SemanticValidator<'a> {
                     suppressed_count += 1;
                     info!("Finding suppressed (FP filter): {}", reason);
                 }
-                ValidationResult { finding: f, suppressed: false, reason: None } => {
+                ValidationResult {
+                    finding: f,
+                    suppressed: false,
+                    reason: None,
+                } => {
                     validated.push(f);
                 }
-                ValidationResult { finding: f, suppressed: true, reason: None } => {
+                ValidationResult {
+                    finding: f,
+                    suppressed: true,
+                    reason: None,
+                } => {
                     // Should not happen in practice (suppressed always has a reason), but handle gracefully
                     suppressed_count += 1;
                     info!("Finding {} suppressed without stated reason", f.id);
@@ -70,8 +78,7 @@ impl<'a> SemanticValidator<'a> {
         if suppressed_count > 0 {
             info!(
                 "Semantic FP filter: {} of {} findings suppressed",
-                suppressed_count,
-                total
+                suppressed_count, total
             );
         }
 
@@ -80,13 +87,16 @@ impl<'a> SemanticValidator<'a> {
 
     /// Evaluate a single finding against the graph.
     fn check(&self, finding: &Finding) -> ValidationResult {
-        match finding.category.as_str() {
-            "signer-authorization" | "missing-signer" => self.check_signer(finding),
-            "ownership-check" | "missing-owner" => self.check_owner(finding),
-            "arbitrary-cpi" => self.check_cpi(finding),
-            "initialization-frontrunning" | "re-initialization" => self.check_init(finding),
-            "fuzzing-crash" | "invariant-violation" => self.check_fuzz(finding),
-            "missing-revalidation" => self.check_revalidation(finding),
+        match &finding.category {
+            VulnerabilityCategory::SignerAuthorization => self.check_signer(finding),
+            VulnerabilityCategory::OwnershipCheck => self.check_owner(finding),
+            VulnerabilityCategory::ArbitraryCpi => self.check_cpi(finding),
+            VulnerabilityCategory::InitializationFrontrunning
+            | VulnerabilityCategory::ReInitialization => self.check_init(finding),
+            VulnerabilityCategory::FuzzingCrash | VulnerabilityCategory::InvariantViolation => {
+                self.check_fuzz(finding)
+            }
+            VulnerabilityCategory::MissingRevalidation => self.check_revalidation(finding),
             _ => ValidationResult {
                 finding: finding.clone(),
                 suppressed: false,
@@ -98,18 +108,16 @@ impl<'a> SemanticValidator<'a> {
     /// Rule 1: If the instruction does not perform any privileged operation
     /// (no writes, no CPI, no state changes), a missing signer check is likely benign.
     fn check_signer(&self, finding: &Finding) -> ValidationResult {
-        let instr_name = finding
-            .location
-            .function
-            .as_deref()
-            .unwrap_or(&finding.category);
+        let instr_name = finding.location.function.as_deref().unwrap_or("unknown");
 
         if let Some(instr) = self.find_instruction(instr_name) {
             let has_effects = !instr.effects.is_empty();
-            let does_writes = instr
-                .effects
-                .iter()
-                .any(|(_, e)| matches!(e, AccountEffect::Write | AccountEffect::Create | AccountEffect::Close));
+            let does_writes = instr.effects.iter().any(|(_, e)| {
+                matches!(
+                    e,
+                    AccountEffect::Write | AccountEffect::Create | AccountEffect::Close
+                )
+            });
             let does_cpi = instr.uses_cpi;
 
             if !does_writes && !does_cpi && has_effects {
@@ -164,11 +172,7 @@ impl<'a> SemanticValidator<'a> {
     /// Rule 3: Arbitrary CPI is only a real concern if the CPI passes
     /// a writable account to an unchecked program.
     fn check_cpi(&self, finding: &Finding) -> ValidationResult {
-        let instr_name = finding
-            .location
-            .function
-            .as_deref()
-            .unwrap_or(&finding.category);
+        let instr_name = finding.location.function.as_deref().unwrap_or("unknown");
 
         if let Some(instr) = self.find_instruction(instr_name) {
             let passes_writable = instr
@@ -198,11 +202,7 @@ impl<'a> SemanticValidator<'a> {
     /// Rule 4: Initialization findings are only relevant if the account
     /// is actually created in the program and is mutable.
     fn check_init(&self, finding: &Finding) -> ValidationResult {
-        let account_name = finding
-            .location
-            .function
-            .as_deref()
-            .unwrap_or("unknown");
+        let account_name = finding.location.function.as_deref().unwrap_or("unknown");
 
         if let Some(account) = self.graph.accounts.iter().find(|a| a.name == account_name) {
             if !account.is_mutable {
@@ -251,16 +251,17 @@ impl<'a> SemanticValidator<'a> {
     /// is actually written in one instruction and read in another.
     fn check_revalidation(&self, finding: &Finding) -> ValidationResult {
         let account = &finding.description; // heuristic: use description to extract account name
-        let account_name = account
-            .split('\'')
-            .nth(1)
-            .unwrap_or("unknown");
+        let account_name = account.split('\'').nth(1).unwrap_or("unknown");
 
-        let written = self
-            .graph
-            .instructions
-            .iter()
-            .any(|i| i.effects.iter().any(|(a, e)| a == account_name && matches!(e, AccountEffect::Write | AccountEffect::Create | AccountEffect::Close)));
+        let written = self.graph.instructions.iter().any(|i| {
+            i.effects.iter().any(|(a, e)| {
+                a == account_name
+                    && matches!(
+                        e,
+                        AccountEffect::Write | AccountEffect::Create | AccountEffect::Close
+                    )
+            })
+        });
 
         if !written {
             return ValidationResult {

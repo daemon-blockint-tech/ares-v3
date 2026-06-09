@@ -1,5 +1,5 @@
-use std::path::Path;
 use ares_core::AresResult;
+use std::path::Path;
 use tracing::{info, warn};
 
 /// Initialize ARES workspace in the given directory.

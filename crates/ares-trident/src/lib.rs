@@ -17,8 +17,12 @@ impl TridentTool {
         let trident_path = if let Some(p) = configured_path {
             p.to_path_buf()
         } else {
-            which::which("trident")
-                .map_err(|_| AresError::ToolMissing("trident-cli not found on PATH. Install via: cargo install trident-cli".to_string()))?
+            which::which("trident").map_err(|_| {
+                AresError::ToolMissing(
+                    "trident-cli not found on PATH. Install via: cargo install trident-cli"
+                        .to_string(),
+                )
+            })?
         };
 
         if !trident_path.exists() {
@@ -75,7 +79,10 @@ impl TridentTool {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !output.status.success() {
-            error!("Trident fuzz failed:\nSTDOUT: {}\nSTDERR: {}", stdout, stderr);
+            error!(
+                "Trident fuzz failed:\nSTDOUT: {}\nSTDERR: {}",
+                stdout, stderr
+            );
             return Err(AresError::Trident(format!(
                 "Fuzz run exited with code {}. stderr: {}",
                 output.status,
@@ -86,7 +93,9 @@ impl TridentTool {
         let result = self.parse_fuzz_output(&stdout, &stderr);
         info!(
             "Fuzz completed | iterations_ran={} crashes={} invariant_violations={}",
-            result.iterations_ran, result.crashes.len(), result.invariant_violations.len()
+            result.iterations_ran,
+            result.crashes.len(),
+            result.invariant_violations.len()
         );
 
         Ok(result)
@@ -126,9 +135,7 @@ impl TridentTool {
         );
 
         // Phase 1 stub: will be enhanced to auto-generate harness based on pattern
-        let result = self
-            .fuzz_run(harness_name, iterations, 300)
-            .await?;
+        let result = self.fuzz_run(harness_name, iterations, 300).await?;
 
         Ok(result)
     }
@@ -300,7 +307,10 @@ impl TridentTool {
 
         loop {
             if total_iterations >= budget.max_iterations {
-                info!("Adaptive fuzz: reached max iterations {}", budget.max_iterations);
+                info!(
+                    "Adaptive fuzz: reached max iterations {}",
+                    budget.max_iterations
+                );
                 break;
             }
             let elapsed = start.elapsed().as_secs();
@@ -321,9 +331,7 @@ impl TridentTool {
                 target, batch, remaining_iters, remaining_secs
             );
 
-            let result = self
-                .fuzz_run(target, batch, remaining_secs)
-                .await?;
+            let result = self.fuzz_run(target, batch, remaining_secs).await?;
 
             let batch_had_crashes = !result.crashes.is_empty();
             let batch_had_violations = !result.invariant_violations.is_empty();

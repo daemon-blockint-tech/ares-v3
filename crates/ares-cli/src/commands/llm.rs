@@ -93,7 +93,9 @@ pub async fn setup(
             LlmProvider::Ollama => "http://localhost:11434/v1",
             LlmProvider::Disabled => "",
         };
-        let current_url = config.llm_base_url.unwrap_or_else(|| default_url.to_string());
+        let current_url = config
+            .llm_base_url
+            .unwrap_or_else(|| default_url.to_string());
 
         // Strip the suffix for the prompt to keep it clean for the user
         let display_url = current_url
@@ -119,12 +121,13 @@ pub async fn setup(
             LlmProvider::Ollama => "llama3",
             LlmProvider::Disabled => "unknown",
         };
-        
-        let current_model = if config.llm_model == "claude-3-5-sonnet" || config.llm_model.is_empty() {
-            default_model.to_string()
-        } else {
-            config.llm_model.clone()
-        };
+
+        let current_model =
+            if config.llm_model == "claude-3-5-sonnet" || config.llm_model.is_empty() {
+                default_model.to_string()
+            } else {
+                config.llm_model.clone()
+            };
 
         let new_model: String = Input::with_theme(&theme)
             .with_prompt("Model Name")
@@ -159,7 +162,10 @@ pub async fn setup(
     let toml_str = toml::to_string_pretty(&config)?;
     tokio::fs::write(config_path, toml_str).await?;
 
-    println!("\n✓ LLM configuration saved successfully to {:?}", config_path);
+    println!(
+        "\n✓ LLM configuration saved successfully to {:?}",
+        config_path
+    );
     println!("  Provider : {:?}", config.llm_provider);
     println!("  Model    : {}", config.llm_model);
     if let Some(ep) = &config.llm_base_url {
@@ -175,15 +181,10 @@ pub async fn status(config: &AresConfig) -> Result<()> {
     println!("=========================================");
     println!("Provider: {:?}", config.llm_provider);
     println!("Model: {}", config.llm_model);
-    
+
     match &config.llm_api_key {
-        Some(key) => {
-            let masked = if key.len() > 8 {
-                format!("{}...{}", &key[0..4], &key[key.len()-4..])
-            } else {
-                "***".to_string()
-            };
-            println!("API Key: Set ({})", masked);
+        Some(_) => {
+            println!("API Key: Set (****)");
         }
         None => {
             let env_key = std::env::var("ARES_LLM_API_KEY").unwrap_or_default();
@@ -198,7 +199,8 @@ pub async fn status(config: &AresConfig) -> Result<()> {
     if let Some(ep) = &config.llm_base_url {
         println!("Endpoint: {}", ep);
     } else {
-        let env_ep = std::env::var("ARES_LLM_ENDPOINT").unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string());
+        let env_ep = std::env::var("ARES_LLM_ENDPOINT")
+            .unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string());
         println!("Endpoint: {} (default/env)", env_ep);
     }
 

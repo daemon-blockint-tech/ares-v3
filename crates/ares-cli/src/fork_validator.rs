@@ -55,9 +55,12 @@ impl ForkValidator {
 
         info!("Starting solana-test-validator: {:?}", cmd.as_std());
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| format!("Failed to start solana-test-validator: {}. Is it installed?", e))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            format!(
+                "Failed to start solana-test-validator: {}. Is it installed?",
+                e
+            )
+        })?;
 
         let stdout = child
             .stdout

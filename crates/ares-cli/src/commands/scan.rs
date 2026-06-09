@@ -1,13 +1,17 @@
-use std::path::{Path, PathBuf};
-use ares_core::{AresConfig, AresResult, AuditReport, Finding, ProgramTarget, ReportMetadata, ReportSummary, Severity};
+use ares_core::{
+    AresConfig, AresResult, AuditReport, Finding, ProgramTarget, ReportMetadata, ReportSummary,
+    Severity, VulnerabilityCategory,
+};
 use ares_mapper::MapperAgent;
-use ares_trident::{TridentTool, check_trident_installation};
 use ares_policy::PolicyEngine;
-use tracing::{info, warn};
+use ares_trident::{check_trident_installation, TridentTool};
 use chrono::Utc;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
+use tracing::{info, warn};
 
 /// Execute a full security scan on a Solana program.
+#[allow(clippy::too_many_arguments)]
 pub async fn execute(
     program_path: &Path,
     config: &AresConfig,
@@ -22,14 +26,20 @@ pub async fn execute(
     info!("=========================================");
     info!("ARES V3 Security Scan");
     info!("Target: {:?}", program_path);
-    info!("Full Pipeline: {} | Fuzz: {} | PoC: {}", full_pipeline, fuzz, poc);
+    info!(
+        "Full Pipeline: {} | Fuzz: {} | PoC: {}",
+        full_pipeline, fuzz, poc
+    );
     info!("Max Duration: {}s", max_duration);
     info!("=========================================");
 
     // Phase 1: Policy check — ensure we are scanning allowed targets only
     let policy = PolicyEngine::new(config.policy_file.as_deref())?;
     policy.check_scan_permission(program_path)?;
-    info!("Policy check passed: scan authorized for {:?}", program_path);
+    info!(
+        "Policy check passed: scan authorized for {:?}",
+        program_path
+    );
 
     // Verify Trident is available
     let trident_version = check_trident_installation().await?;
@@ -84,10 +94,15 @@ pub async fn execute(
     // Phase 3: Cross-instruction data-flow analysis (after findings vec is initialized)
     info!("[2b/5] Cross-Instruction Analyzer: Checking TOCTOU, re-validation gaps...");
     let cross_findings = ares_mapper::cross_analysis::analyze(&program_graph)?;
-    info!("Cross-instruction analysis: {} findings", cross_findings.len());
+    info!(
+        "Cross-instruction analysis: {} findings",
+        cross_findings.len()
+    );
 
     for cf in cross_findings {
-        let severity = if cf.category == "reentrancy-risk" {
+        let category = VulnerabilityCategory::from_str_checked(&cf.category)
+            .unwrap_or(VulnerabilityCategory::InvariantViolation);
+        let severity = if matches!(category, VulnerabilityCategory::ReentrancyRisk) {
             ares_core::Severity::Critical
         } else {
             ares_core::Severity::High
@@ -97,7 +112,7 @@ pub async fn execute(
             title: format!("{}: {}", cf.category, cf.affected_account),
             description: cf.description,
             severity,
-            category: cf.category,
+            category,
             location: ares_core::CodeLocation {
                 file: program_target.source_path.clone(),
                 function: Some(cf.source_instruction),
@@ -138,10 +153,11 @@ pub async fn execute(
                         title: format!("Crash in fuzz target '{}'", target_name),
                         description: crash.clone(),
                         severity: Severity::High,
-                        category: "fuzzing-crash".to_string(),
+                        category: VulnerabilityCategory::FuzzingCrash,
                         location: Default::default(),
                         proof_of_concept: None,
-                        recommendation: "Investigate crash reproduction and root cause analysis.".to_string(),
+                        recommendation: "Investigate crash reproduction and root cause analysis."
+                            .to_string(),
                         references: vec![],
                         confidence: 0.85,
                     });
@@ -152,10 +168,11 @@ pub async fn execute(
                         title: format!("Invariant violation in target '{}'", target_name),
                         description: violation.clone(),
                         severity: Severity::Critical,
-                        category: "invariant-violation".to_string(),
+                        category: VulnerabilityCategory::InvariantViolation,
                         location: Default::default(),
                         proof_of_concept: None,
-                        recommendation: "Review state transition invariants and access controls.".to_string(),
+                        recommendation: "Review state transition invariants and access controls."
+                            .to_string(),
                         references: vec![],
                         confidence: 0.90,
                     });
@@ -173,7 +190,10 @@ pub async fn execute(
     if poc {
         info!("[4/5] Exploit Constructor: Generating proof-of-concept tests...");
         for finding in findings.iter_mut() {
-            let poc_path = output.join("poc").join(format!("{}_test.rs", finding.id.to_lowercase().replace("-", "_")));
+            let poc_path = output.join("poc").join(format!(
+                "{}_test.rs",
+                finding.id.to_lowercase().replace("-", "_")
+            ));
             let poc_code = crate::poc::PocGenerator::generate(finding, &program_target.name);
             tokio::fs::write(&poc_path, poc_code).await?;
             finding.proof_of_concept = Some(poc_path);
@@ -188,13 +208,17 @@ pub async fn execute(
     findings = validator.validate(findings);
     let suppressed_count = pre_validation_count - findings.len();
     if suppressed_count > 0 {
-        info!("Semantic FP filter suppressed {} findings", suppressed_count);
+        info!(
+            "Semantic FP filter suppressed {} findings",
+            suppressed_count
+        );
     }
 
     // Phase 4: Deterministic Local Judge
     info!("[4.6/5] Local Judge: Deterministic false-positive suppression...");
     let local_judge = ares_mapper::local_judge::LocalJudge::new(config.judge_extended);
-    let (retained_findings, mut suppressed_findings) = local_judge.judge(findings, &program_graph.source_patterns);
+    let (retained_findings, mut suppressed_findings) =
+        local_judge.judge(findings, &program_graph.source_patterns);
     findings = retained_findings;
 
     // Phase 7: LLM-as-Judge validation
@@ -205,7 +229,7 @@ pub async fn execute(
     if llm_suppressed > 0 {
         info!("LLM-as-Judge suppressed {} findings", llm_suppressed);
     }
-    
+
     // Convert LLM suppressed findings to SuppressedFinding
     for r in &llm_results {
         if r.suppressed {
@@ -216,14 +240,14 @@ pub async fn execute(
             });
         }
     }
-    
+
     findings = crate::llm_judge::extract_findings(llm_results);
 
     // Phase 1: Triager (basic confidence filtering)
     info!("[5/5] Triager: Filtering findings by confidence threshold...");
     let confidence_threshold = 0.70;
     let initial_count = findings.len();
-    
+
     let mut final_findings = Vec::new();
     for f in findings {
         if f.confidence >= confidence_threshold {
@@ -237,7 +261,7 @@ pub async fn execute(
         }
     }
     findings = final_findings;
-    
+
     let filtered_count = initial_count - findings.len();
     if filtered_count > 0 {
         info!("Filtered out {} low-confidence findings", filtered_count);
@@ -245,19 +269,38 @@ pub async fn execute(
 
     // Phase 4: Economic exploit scoring
     info!("[5.5/5] Exploit Scorer: Estimating extractable economic impact...");
-    let (total_economic_impact, max_single_exploit) = crate::scorer::ExploitScorer::score_report(&findings);
+    let (total_economic_impact, max_single_exploit) =
+        crate::scorer::ExploitScorer::score_report(&findings);
 
     // Generate report with real measurements
     let elapsed_secs = scan_start.elapsed().as_secs();
     let summary = ReportSummary {
         total_findings: findings.len(),
-        critical_count: findings.iter().filter(|f| matches!(f.severity, Severity::Critical)).count(),
-        high_count: findings.iter().filter(|f| matches!(f.severity, Severity::High)).count(),
-        medium_count: findings.iter().filter(|f| matches!(f.severity, Severity::Medium)).count(),
-        low_count: findings.iter().filter(|f| matches!(f.severity, Severity::Low)).count(),
-        informational_count: findings.iter().filter(|f| matches!(f.severity, Severity::Informational)).count(),
+        critical_count: findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Critical))
+            .count(),
+        high_count: findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::High))
+            .count(),
+        medium_count: findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Medium))
+            .count(),
+        low_count: findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Low))
+            .count(),
+        informational_count: findings
+            .iter()
+            .filter(|f| matches!(f.severity, Severity::Informational))
+            .count(),
         false_positives_suppressed: filtered_count,
-        poc_generated: findings.iter().filter(|f| f.proof_of_concept.is_some()).count(),
+        poc_generated: findings
+            .iter()
+            .filter(|f| f.proof_of_concept.is_some())
+            .count(),
         tests_passed,
         tests_failed,
         total_economic_impact_lamports: total_economic_impact,
@@ -303,7 +346,10 @@ pub async fn execute(
     info!("  Low:          {}", report.summary.low_count);
     info!("  Info:         {}", report.summary.informational_count);
     info!("  PoC Generated: {}", report.summary.poc_generated);
-    info!("  Suppressed:   {}", report.summary.false_positives_suppressed);
+    info!(
+        "  Suppressed:   {}",
+        report.summary.false_positives_suppressed
+    );
     info!("=========================================");
 
     if report.summary.critical_count > 0 {

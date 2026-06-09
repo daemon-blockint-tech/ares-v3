@@ -1,7 +1,7 @@
-use std::path::Path;
 use ares_core::AresResult;
-use tracing::info;
 use serde_json::Value;
+use std::path::Path;
+use tracing::info;
 
 /// Generate a self-contained HTML benchmark comparison dashboard.
 /// Reads the JSON output from `ares benchmark` and produces an HTML file
@@ -12,7 +12,10 @@ pub async fn execute(
     format: crate::ReportFormat,
 ) -> AresResult<()> {
     info!("ARES Benchmark Dashboard");
-    info!("Input: {:?} | Output: {:?} | Format: {:?}", benchmark_json, output, format);
+    info!(
+        "Input: {:?} | Output: {:?} | Format: {:?}",
+        benchmark_json, output, format
+    );
 
     if !benchmark_json.exists() {
         return Err(ares_core::AresError::NotFound(format!(
@@ -28,8 +31,9 @@ pub async fn execute(
         _ => {
             // Default to HTML for any non-Pdf variant (including Html, Markdown, Json, GithubIssue)
             let content = tokio::fs::read_to_string(benchmark_json).await?;
-            let json: Value = serde_json::from_str(&content)
-                .map_err(|e| ares_core::AresError::Parse(format!("Invalid benchmark JSON: {}", e)))?;
+            let json: Value = serde_json::from_str(&content).map_err(|e| {
+                ares_core::AresError::Parse(format!("Invalid benchmark JSON: {}", e))
+            })?;
             let html = generate_dashboard_html(&json);
             tokio::fs::write(output, html).await?;
             info!("Dashboard written to: {:?}", output);
@@ -40,13 +44,29 @@ pub async fn execute(
 }
 
 fn generate_dashboard_html(json: &Value) -> String {
-    let results = json.get("results").and_then(|r| r.as_array()).cloned().unwrap_or_default();
+    let results = json
+        .get("results")
+        .and_then(|r| r.as_array())
+        .cloned()
+        .unwrap_or_default();
     let summary = json.get("summary").cloned().unwrap_or_default();
 
-    let total_tested = summary.get("total_tested").and_then(|v| v.as_u64()).unwrap_or(0);
-    let total_detections = summary.get("total_detections").and_then(|v| v.as_u64()).unwrap_or(0);
-    let avg_rate = summary.get("avg_detection_rate").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let total_economic = summary.get("total_economic_score_lamports").and_then(|v| v.as_u64()).unwrap_or(0);
+    let total_tested = summary
+        .get("total_tested")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let total_detections = summary
+        .get("total_detections")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let avg_rate = summary
+        .get("avg_detection_rate")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let total_economic = summary
+        .get("total_economic_score_lamports")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let baseline_rate = summary
         .get("baseline_trident_arena")
         .and_then(|b| b.get("detection_rate"))
@@ -54,25 +74,59 @@ fn generate_dashboard_html(json: &Value) -> String {
         .unwrap_or(0.70);
 
     // Phase 6: Precision/Recall/F1 from ground truth
-    let avg_precision = summary.get("avg_precision").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let avg_recall = summary.get("avg_recall").and_then(|v| v.as_f64()).unwrap_or(0.0);
-    let avg_f1 = summary.get("avg_f1_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let avg_precision = summary
+        .get("avg_precision")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let avg_recall = summary
+        .get("avg_recall")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+    let avg_f1 = summary
+        .get("avg_f1_score")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
 
     let protocol_rows: String = results
         .iter()
         .map(|r| {
-            let name = r.get("protocol_name").and_then(|v| v.as_str()).unwrap_or("unknown");
-            let detected = r.get("detected_critical_high").and_then(|v| v.as_u64()).unwrap_or(0);
-            let total = r.get("total_critical_high").and_then(|v| v.as_u64()).unwrap_or(1).max(1);
-            let rate = r.get("detection_rate").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let economic = r.get("economic_score_lamports").and_then(|v| v.as_u64()).unwrap_or(0);
-            let time = r.get("execution_time_secs").and_then(|v| v.as_u64()).unwrap_or(0);
+            let name = r
+                .get("protocol_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let detected = r
+                .get("detected_critical_high")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let total = r
+                .get("total_critical_high")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(1)
+                .max(1);
+            let rate = r
+                .get("detection_rate")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let economic = r
+                .get("economic_score_lamports")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let time = r
+                .get("execution_time_secs")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             let precision = r.get("precision").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let recall = r.get("recall").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let f1 = r.get("f1_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let rate_pct = rate * 100.0;
             let bar_width = rate_pct.min(100.0);
-            let color = if rate >= 0.83 { "#27ae60" } else if rate >= 0.50 { "#f39c12" } else { "#e74c3c" };
+            let color = if rate >= 0.83 {
+                "#27ae60"
+            } else if rate >= 0.50 {
+                "#f39c12"
+            } else {
+                "#e74c3c"
+            };
             format!(
                 r#"<tr>
                     <td>{}</td>
@@ -89,9 +143,17 @@ fn generate_dashboard_html(json: &Value) -> String {
                     <td>{:.4} SOL</td>
                     <td>{}s</td>
                 </tr>"#,
-                name, detected, total, bar_width, color, rate_pct,
-                precision, recall, f1,
-                economic as f64 / 1_000_000_000.0, time
+                name,
+                detected,
+                total,
+                bar_width,
+                color,
+                rate_pct,
+                precision,
+                recall,
+                f1,
+                economic as f64 / 1_000_000_000.0,
+                time
             )
         })
         .collect();
@@ -99,22 +161,42 @@ fn generate_dashboard_html(json: &Value) -> String {
     // Trident Arena head-to-head rows (6 benchmark protocols)
     // Expected totals match Trident Arena's published retrospective benchmark counts.
     let trident_expected_totals: std::collections::HashMap<&str, usize> = [
-        ("axelar", 7), ("bert-staking", 2), ("dexalot", 5),
-        ("pump-science", 2), ("metadao", 3), ("watt", 11),
-    ].iter().copied().collect();
+        ("axelar", 7),
+        ("bert-staking", 2),
+        ("dexalot", 5),
+        ("pump-science", 2),
+        ("metadao", 3),
+        ("watt", 11),
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     let trident_baseline_detected: std::collections::HashMap<&str, usize> = [
-        ("axelar", 5), ("bert-staking", 1), ("dexalot", 4),
-        ("pump-science", 1), ("metadao", 3), ("watt", 7),
-    ].iter().copied().collect();
+        ("axelar", 5),
+        ("bert-staking", 1),
+        ("dexalot", 4),
+        ("pump-science", 1),
+        ("metadao", 3),
+        ("watt", 7),
+    ]
+    .iter()
+    .copied()
+    .collect();
 
     let mut trident_rows_vec = Vec::new();
     let mut ares_trident_total_tp = 0usize;
     let mut ares_trident_total_expected = 0usize;
     for r in &results {
-        let name = r.get("protocol_name").and_then(|v| v.as_str()).unwrap_or("");
+        let name = r
+            .get("protocol_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if let Some(&expected_total) = trident_expected_totals.get(name) {
-            let ares_detected = (r.get("detected_critical_high").and_then(|v| v.as_u64()).unwrap_or(0) as usize)
+            let ares_detected = (r
+                .get("detected_critical_high")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as usize)
                 .min(expected_total); // cap at expected findings count
             let trident_detected = trident_baseline_detected.get(name).copied().unwrap_or(0);
             let ares_rate = (ares_detected as f64 / expected_total as f64) * 100.0;
@@ -128,15 +210,22 @@ fn generate_dashboard_html(json: &Value) -> String {
                     <td><strong>{}/{} ({:.0}%)</strong></td>
                     <td>{}/{} ({:.0}%)</td>
                 </tr>"#,
-                name, expected_total,
-                ares_detected, expected_total, ares_rate,
-                trident_detected, expected_total, trident_rate
+                name,
+                expected_total,
+                ares_detected,
+                expected_total,
+                ares_rate,
+                trident_detected,
+                expected_total,
+                trident_rate
             ));
         }
     }
     let ares_trident_total_rate = if ares_trident_total_expected > 0 {
         (ares_trident_total_tp as f64 / ares_trident_total_expected as f64) * 100.0
-    } else { 0.0 };
+    } else {
+        0.0
+    };
     trident_rows_vec.push(format!(
         r#"<tr style="font-weight:700;background:rgba(56,189,248,0.08);">
             <td>TOTAL</td>
@@ -144,7 +233,10 @@ fn generate_dashboard_html(json: &Value) -> String {
             <td><strong>{}/{} ({:.0}%)</strong></td>
             <td>21/30 (70%)</td>
         </tr>"#,
-        ares_trident_total_expected, ares_trident_total_tp, ares_trident_total_expected, ares_trident_total_rate
+        ares_trident_total_expected,
+        ares_trident_total_tp,
+        ares_trident_total_expected,
+        ares_trident_total_rate
     ));
     let trident_rows = trident_rows_vec.join("\n");
 
@@ -153,10 +245,23 @@ fn generate_dashboard_html(json: &Value) -> String {
     let mut ext_total_tp = 0usize;
     let mut ext_total_expected = 0usize;
     for r in &results {
-        let name = r.get("protocol_name").and_then(|v| v.as_str()).unwrap_or("");
-        if trident_expected_totals.contains_key(name) { continue; }
-        let expected = r.get("total_critical_high").and_then(|v| v.as_u64()).unwrap_or(1).max(1) as usize;
-        let detected = (r.get("detected_critical_high").and_then(|v| v.as_u64()).unwrap_or(0) as usize).min(expected);
+        let name = r
+            .get("protocol_name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if trident_expected_totals.contains_key(name) {
+            continue;
+        }
+        let expected = r
+            .get("total_critical_high")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1)
+            .max(1) as usize;
+        let detected = (r
+            .get("detected_critical_high")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize)
+            .min(expected);
         ext_total_tp += detected;
         ext_total_expected += expected;
         let rate = (detected as f64 / expected as f64) * 100.0;
@@ -170,7 +275,11 @@ fn generate_dashboard_html(json: &Value) -> String {
             name, expected, detected, expected, rate
         ));
     }
-    let ext_total_rate = if ext_total_expected > 0 { (ext_total_tp as f64 / ext_total_expected as f64) * 100.0 } else { 0.0 };
+    let ext_total_rate = if ext_total_expected > 0 {
+        (ext_total_tp as f64 / ext_total_expected as f64) * 100.0
+    } else {
+        0.0
+    };
     ext_rows_vec.push(format!(
         r#"<tr style="font-weight:700;background:rgba(56,189,248,0.08);">
             <td>TOTAL</td>
