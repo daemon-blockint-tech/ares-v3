@@ -39,7 +39,7 @@ config = { workspace = true }
 chrono = "0.4"
 which = { workspace = true }
 walkdir = { workspace = true }
-printpdf = "0.3.4"
+printpdf = "0.9.1"
 
 reqwest = { workspace = true }
 tracing-appender = "0.2.5"
